@@ -4,7 +4,7 @@ from torch import Tensor
 
 QTensor = namedtuple('QTensor', ['tensor', 'scale', 'zero_point'])
 
-class NrxNeuronType():
+class NpxNeuronType():
   def __init__(self, type_by_str:str=None):
     assert type_by_str!=None, type_by_str
     assert type_by_str[0]=='q', type_by_str

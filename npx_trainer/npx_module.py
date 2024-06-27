@@ -12,11 +12,11 @@ from snntorch import utils
 from snntorch import spikeplot as splt
 from snntorch import spikegen
 
-from nrx_define import *
-from nrx_neuron_type import *
+from npx_define import *
+from npx_neuron_type import *
 
 class PotentialResult():
-  def __init__(self, pacc:int=0, nacc:int=0, neuron_type:NrxNeuronType=None):
+  def __init__(self, pacc:int=0, nacc:int=0, neuron_type:NpxNeuronType=None):
     self.neuron_type = neuron_type
     self.pacc = pacc
     self.nacc = nacc
@@ -33,12 +33,12 @@ class PotentialResult():
     assert self.neuron_type
     return str((self.pacc,self.nacc,math.ceil(self.max/self.neuron_type.qmax)))
 
-class NrxModule(nn.Module):
-  def __init__(self, app_name:str, neuron_type_str:NrxNeuronType):
-    super(NrxModule, self).__init__()
+class NpxModule(nn.Module):
+  def __init__(self, app_name:str, neuron_type_str:NpxNeuronType):
+    super(NpxModule, self).__init__()
 
     self.app_name = app_name
-    self.neuron_type = NrxNeuronType(neuron_type_str) if neuron_type_str else None
+    self.neuron_type = NpxNeuronType(neuron_type_str) if neuron_type_str else None
     self.train_threshold = False
     #self.reset_mechanism = 'zero'
     self.reset_mechanism = 'subtract'
@@ -51,6 +51,7 @@ class NrxModule(nn.Module):
     fc_lif_threshold = 1.0
 
     self.layer_sequence = []
+    
     if self.app_name=='mnist_l1f':
       self.layer1 = nn.Linear(14*14, 10, bias=False)
       self.neuron1 = snntorch.Leaky(beta=beta, threshold=fc_lif_threshold, init_hidden=True, reset_mechanism=self.reset_mechanism, learn_threshold=self.can_learn_threshold, output=True)
@@ -115,28 +116,87 @@ class NrxModule(nn.Module):
       self.layer3 = nn.Linear(6*6*7, 10, bias=False)
       self.neuron3 = snntorch.Leaky(beta=beta, threshold=fc_lif_threshold, init_hidden=True, reset_mechanism=self.reset_mechanism, learn_threshold=self.can_learn_threshold, output=True)
       self.layer_sequence.append((self.layer3,self.neuron3))
-      
-    elif self.app_name=='cifar-10_l5ccfff':
-      filter_size = 3
-      
-      self.layer1 = nn.Conv2d(3, 8, filter_size, padding ='same', bias=False) # 16x16x3 -> 14x14x8
-      self.neuron1 = snntorch.Leaky(beta=beta, threshold=conv_lif_threshold, init_hidden=True, reset_mechanism=self.reset_mechanism, learn_threshold=True)
+
+    elif self.app_name=='fmnist_l2cf':
+      filter_size = 5
+      self.layer1 = nn.Conv2d(1, 2, filter_size, bias=False) # 10x10x2
+      self.neuron1 = snntorch.Leaky(beta=beta, threshold=conv_lif_threshold, init_hidden=True, reset_mechanism=self.reset_mechanism, learn_threshold=self.can_learn_threshold)
       self.layer_sequence.append((self.layer1,self.neuron1))
-      
-      self.layer2 = nn.Conv2d(8, 16, filter_size, padding ='same', bias=False) # 14x14x8 -> 12x12x16
-      self.neuron2 = snntorch.Leaky(beta=beta, threshold=fc_lif_threshold, init_hidden=True, reset_mechanism=self.reset_mechanism, learn_threshold=True)
+
+      self.layer2= nn.Linear(10*10*2, 10, bias=False)
+      self.neuron2 = snntorch.Leaky(beta=beta, threshold=fc_lif_threshold, init_hidden=True, reset_mechanism=self.reset_mechanism, learn_threshold=self.can_learn_threshold, output=True)
       self.layer_sequence.append((self.layer2,self.neuron2))
-      
-      self.layer3 = nn.Linear(16*16*16, 64, bias=False)
-      self.neuron3 = snntorch.Leaky(beta=beta, threshold=fc_lif_threshold, init_hidden=True, reset_mechanism=self.reset_mechanism, learn_threshold=True)
+
+    elif self.app_name=='fmnist_l3cff':
+      filter_size = 5
+      self.layer1 = nn.Conv2d(1, 2, filter_size, bias=False) # 10x10x2
+      self.neuron1 = snntorch.Leaky(beta=beta, threshold=conv_lif_threshold, init_hidden=True, reset_mechanism=self.reset_mechanism, learn_threshold=self.can_learn_threshold)
+      self.layer_sequence.append((self.layer1,self.neuron1))
+        
+      self.layer2 = nn.Linear(10*10*2, 256, bias=False)
+      self.neuron2 = snntorch.Leaky(beta=beta, threshold=fc_lif_threshold, init_hidden=True, reset_mechanism=self.reset_mechanism, learn_threshold=self.can_learn_threshold)
+      self.layer_sequence.append((self.layer2,self.neuron2))
+
+      self.layer3 = nn.Linear(256, 10, bias=False)
+      self.neuron3 = snntorch.Leaky(beta=beta, threshold=fc_lif_threshold, init_hidden=True, reset_mechanism=self.reset_mechanism, learn_threshold=self.can_learn_threshold, output=True)
       self.layer_sequence.append((self.layer3,self.neuron3))
-  
-      self.layer4 = nn.Linear(64, 32, bias=False)
-      self.neuron4 = snntorch.Leaky(beta=beta, threshold=fc_lif_threshold, init_hidden=True, reset_mechanism=self.reset_mechanism, learn_threshold=True)
+
+    elif self.app_name=='fmnist_l3ccf':
+      filter_size = 5
+      self.layer1 = nn.Conv2d(1, 2, filter_size, bias=False) # 10x10x2
+      self.neuron1 = snntorch.Leaky(beta=beta, threshold=conv_lif_threshold, init_hidden=True, reset_mechanism=self.reset_mechanism, learn_threshold=self.can_learn_threshold)
+      self.layer_sequence.append((self.layer1,self.neuron1))
+        
+      self.layer2 = nn.Conv2d(2, 7, filter_size, bias=False)
+      self.neuron2 = snntorch.Leaky(beta=beta, threshold=fc_lif_threshold, init_hidden=True, reset_mechanism=self.reset_mechanism, learn_threshold=self.can_learn_threshold)
+      self.layer_sequence.append((self.layer2,self.neuron2))
+
+      self.layer3 = nn.Linear(6*6*7, 10, bias=False)
+      self.neuron3 = snntorch.Leaky(beta=beta, threshold=fc_lif_threshold, init_hidden=True, reset_mechanism=self.reset_mechanism, learn_threshold=self.can_learn_threshold, output=True)
+      self.layer_sequence.append((self.layer3,self.neuron3))
+
+    elif self.app_name=='cifar10_l5cccff': 
+      filter_size = 3
+      self.layer1 = nn.Conv2d(3, 8, filter_size, bias=False) # 30x30x8
+      self.neuron1 = snntorch.Leaky(beta=beta, threshold=conv_lif_threshold, init_hidden=True, reset_mechanism=self.reset_mechanism, learn_threshold=self.can_learn_threshold)
+      self.layer_sequence.append((self.layer1,self.neuron1))
+        
+      self.layer2 = nn.Conv2d(8, 16, filter_size, bias=False) # 28x28x16
+      self.neuron2 = snntorch.Leaky(beta=beta, threshold=fc_lif_threshold, init_hidden=True, reset_mechanism=self.reset_mechanism, learn_threshold=self.can_learn_threshold)
+      self.layer_sequence.append((self.layer2,self.neuron2))
+
+      self.layer3 = nn.Conv2d(16, 32, filter_size, bias=False) # 26x26x32
+      self.neuron3 = snntorch.Leaky(beta=beta, threshold=fc_lif_threshold, init_hidden=True, reset_mechanism=self.reset_mechanism, learn_threshold=self.can_learn_threshold)
+      self.layer_sequence.append((self.layer3,self.neuron3))
+
+      self.layer4 = nn.Linear(26*26*32, 256, bias=False)
+      self.neuron4 = snntorch.Leaky(beta=beta, threshold=fc_lif_threshold, init_hidden=True, reset_mechanism=self.reset_mechanism, learn_threshold=self.can_learn_threshold)
       self.layer_sequence.append((self.layer4,self.neuron4))
-  
-      self.layer5 = nn.Linear(32, 10, bias=False)
-      self.neuron5 = snntorch.Leaky(beta=beta, threshold=fc_lif_threshold, init_hidden=True, reset_mechanism=self.reset_mechanism, learn_threshold=True, output=True)
+
+      self.layer5 = nn.Linear(256, 10, bias=False)
+      self.neuron5 = snntorch.Leaky(beta=beta, threshold=fc_lif_threshold, init_hidden=True, reset_mechanism=self.reset_mechanism, learn_threshold=self.can_learn_threshold, output=True)
+      self.layer_sequence.append((self.layer5,self.neuron5))
+
+    elif self.app_name=='gtsrb_l5cccff': 
+      filter_size = 5
+      self.layer1 = nn.Conv2d(3, 10, filter_size, bias=False) # 28x28x10 
+      self.neuron1 = snntorch.Leaky(beta=beta, threshold=conv_lif_threshold, init_hidden=True, reset_mechanism=self.reset_mechanism, learn_threshold=self.can_learn_threshold)
+      self.layer_sequence.append((self.layer1,self.neuron1))
+        
+      self.layer2 = nn.Conv2d(10, 15, filter_size, bias=False) # 24x24x15
+      self.neuron2 = snntorch.Leaky(beta=beta, threshold=fc_lif_threshold, init_hidden=True, reset_mechanism=self.reset_mechanism, learn_threshold=self.can_learn_threshold)
+      self.layer_sequence.append((self.layer2,self.neuron2))
+
+      self.layer3 = nn.Conv2d(15, 25, filter_size, bias=False) # 20x20x25
+      self.neuron3 = snntorch.Leaky(beta=beta, threshold=fc_lif_threshold, init_hidden=True, reset_mechanism=self.reset_mechanism, learn_threshold=self.can_learn_threshold)
+      self.layer_sequence.append((self.layer3,self.neuron3))
+
+      self.layer4 = nn.Linear(20*20*25, 350, bias=False)
+      self.neuron4 = snntorch.Leaky(beta=beta, threshold=fc_lif_threshold, init_hidden=True, reset_mechanism=self.reset_mechanism, learn_threshold=self.can_learn_threshold)
+      self.layer_sequence.append((self.layer4,self.neuron4))
+
+      self.layer5 = nn.Linear(350, 43, bias=False)
+      self.neuron5 = snntorch.Leaky(beta=beta, threshold=fc_lif_threshold, init_hidden=True, reset_mechanism=self.reset_mechanism, learn_threshold=self.can_learn_threshold, output=True)
       self.layer_sequence.append((self.layer5,self.neuron5))
 
     else:

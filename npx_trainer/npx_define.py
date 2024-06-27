@@ -5,7 +5,7 @@ TestResult = namedtuple('TestResult', ['acc', 'total', 'total_time', 'model_size
 RecordResult = namedtuple('RecordResult', ['dataset_name', 'train_neuron_str', 'test_neuron_str', 'repeat_index_str','epoch_index_str', 'val_accuracy_str', 'test_accuracy_str'])
 #CfgFilename = namedtuple('CfgFilename', ['prefix', 'repeat_index', 'epoch_index', 'value_type'])
 
-class NrxDefine:
+class NpxDefine:
   def __init__(self, app_name:str, train_neuron_str:str, test_neuron_str:str, output_path:Path):
     self.app_name = app_name
     self.train_neuron_str = train_neuron_str

@@ -4,7 +4,7 @@ import torch
 from torch.utils.data.dataloader import DataLoader
 from torchvision import datasets, transforms
 
-class NrxDataManager():
+class NpxDataManager():
   def __init__(self, dataset_name:str, dataset_path:Path, num_kfold:int=None):
     self.name = dataset_name
     self.download_path = dataset_path / self.name
@@ -15,7 +15,7 @@ class NrxDataManager():
     self.fair_distribution = False
 
     self.download_path.mkdir(parents=True, exist_ok=True)
-
+    
     if self.name=='mnist':
       transform = transforms.Compose([
         transforms.Resize((14, 14)),
@@ -24,13 +24,28 @@ class NrxDataManager():
         transforms.Normalize((0,), (1,))])
       dataset_train_and_val = datasets.MNIST(root=self.download_path, train=True, download=True, transform=transform)
       self.dataset_test = datasets.MNIST(root=self.download_path, train=False, download=True, transform=transform)
-    elif self.name=='cifar-10':
+    elif self.name=='fmnist':
       transform = transforms.Compose([
-        transforms.Resize((16, 16)),
+        transforms.Resize((14, 14)),
+        transforms.Grayscale(),
         transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+        transforms.Normalize((0,), (1,))])
+      dataset_train_and_val = datasets.FashionMNIST(root=self.download_path, train=True, download=True, transform=transform)
+      self.dataset_test = datasets.FashionMNIST(root=self.download_path, train=False, download=True, transform=transform)
+    elif self.name=='cifar10':
+      transform = transforms.Compose([
+        transforms.Resize((32, 32)),
+        transforms.ToTensor(),
+        transforms.Normalize((0, 0, 0), (1, 1, 1))])
       dataset_train_and_val = datasets.CIFAR10(root=self.download_path, train=True, download=True, transform=transform)
       self.dataset_test = datasets.CIFAR10(root=self.download_path, train=False, download=True, transform=transform)
+    elif self.name=='gtsrb':
+      transform = transforms.Compose([
+        transforms.Resize((32, 32)),
+        transforms.ToTensor(),
+        transforms.Normalize((0, 0, 0), (1, 1, 1))])
+      dataset_train_and_val = datasets.GTSRB(root=self.download_path, split='train', download=True, transform=transform)
+      self.dataset_test = datasets.GTSRB(root=self.download_path, split='test', download=True, transform=transform)
     else:
       assert 0, dataset_name
     
