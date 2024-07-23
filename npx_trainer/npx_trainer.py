@@ -24,6 +24,9 @@ class NpxTrainer():
     npx_define.neuron_dir_path.mkdir(parents=True, exist_ok=True)
     npx_module = NpxModule(app_name=npx_define.app_name, neuron_type_str=npx_define.train_neuron_str).to(self.device)
 
+    print(npx_module)
+    print(list(npx_module.parameters()))
+
     previous_epoch_index = -1
     previous_history_file = None
     for history_cfg_path in npx_define.neuron_dir_path.glob(npx_define.get_cfg_filename_pattern(repeat_index, False)):
@@ -45,6 +48,7 @@ class NpxTrainer():
 
   def train_once(self, npx_module:NpxModule, npx_data_manager:NpxDataManager, epoch_index:int):
     npx_module.train()
+    #print(npx_module.parameters())
     optimizer = torch.optim.Adam(npx_module.parameters())
   
     for batch_idx, (data, target) in enumerate(tqdm(npx_data_manager.train_loader)):
@@ -55,6 +59,7 @@ class NpxTrainer():
       
       optimizer.zero_grad()
       loss_val.backward()
+      #loss_val.backward(retain_graph=True)
       optimizer.step()
 
       if (batch_idx % self.log_interval) == 0:
@@ -135,6 +140,67 @@ class NpxTrainer():
         line_list.append(NpxTrainer.format_test_result(npx_define, repeat_index, epoch_index, val_result, test_result))
       npx_define.get_report_path(repeat_index).write_text('\n'.join(line_list))
 
+  def train_cfg(self, npx_define:NpxDefine, config_path:Path, repeat_index:int, npx_data_manager:NpxDataManager, num_epochs:int):
+    print('\n[TRAIN]', npx_define.app_name, npx_define.train_neuron_str, repeat_index, num_epochs)
+    npx_data_manager.setup_loader(repeat_index)
+    npx_define.neuron_dir_path.mkdir(parents=True, exist_ok=True)
+    npx_module = NpxModule(app_name=str(config_path), neuron_type_str=npx_define.train_neuron_str).to(self.device)
+    #print(npx_module)
+    #print(npx_module.layer_sequence)
+
+    previous_epoch_index = -1
+    previous_history_file = None
+    for history_cfg_path in npx_define.neuron_dir_path.glob(npx_define.get_cfg_filename_pattern(repeat_index, False)):
+      epoch_index = npx_define.get_epoch_index_from_cfg_path(history_cfg_path)
+      if epoch_index > previous_epoch_index:
+        previous_epoch_index = epoch_index
+        previous_history_file = history_cfg_path
+
+    start_epoch_index = previous_epoch_index + 1
+    if previous_epoch_index>=0:
+      npx_module.load_state_dict(torch.load(previous_history_file))
+      print(f'Start from \"{previous_history_file.name}\"')
+
+    for epoch_index in range(start_epoch_index, num_epochs):
+      self.train_once(npx_module=npx_module, npx_data_manager=npx_data_manager, epoch_index=epoch_index)
+      torch.save(npx_module.state_dict(), npx_define.get_cfg_path(repeat_index,epoch_index, False))
+      result = self.test_once(npx_module, npx_data_manager.test_loader)
+      NpxDefine.print_test_result(result)
+
+  def test_cfg(self, npx_define:NpxDefine, config_path:Path, repeat_index:int, npx_data_manager:NpxDataManager):
+    print('\n[TEST]', npx_define.app_name, npx_define.test_neuron_str, repeat_index)
+    self.quantize_cfg(npx_define, config_path, repeat_index)
+
+    report_path = npx_define.get_report_path(repeat_index)
+    if not report_path.is_file():
+      result_list = []
+      npx_data_manager.setup_loader(repeat_index)
+      #npx_module = NpxModule(app_name=app_name, neuron_type_str=npx_define.test_neuron_str).to(self.device)
+      npx_module = NpxModule(app_name=str(config_path), neuron_type_str=npx_define.train_neuron_str).to(self.device)
+      for history_cfg_path in sorted(npx_define.neuron_dir_path.glob(npx_define.get_cfg_filename_pattern(repeat_index, True)),reverse=True):
+        npx_module.load_state_dict(torch.load(history_cfg_path))
+        val_result = self.test_once(npx_module, npx_data_manager.val_loader)
+        npx_module.load_state_dict(torch.load(history_cfg_path))
+        test_result = self.test_once(npx_module, npx_data_manager.test_loader)
+        epoch_index = int(history_cfg_path.name.split('_')[-2])
+        result_list.append((epoch_index,val_result, test_result))
+      line_list = []
+      for epoch_index, val_result, test_result in result_list:
+        line_list.append(NpxTrainer.format_test_result(npx_define, repeat_index, epoch_index, val_result, test_result))
+      npx_define.get_report_path(repeat_index).write_text('\n'.join(line_list))
+
+  def quantize_cfg(self, npx_define:NpxDefine, config_path:Path, repeat_index:int):
+    #npx_module = NpxModule(app_name=npx_define.app_name, neuron_type_str=npx_define.test_neuron_str).to(self.device)
+    npx_module = NpxModule(app_name=str(config_path), neuron_type_str=npx_define.train_neuron_str).to(self.device)
+    npx_module.eval()
+    for history_cfg_path in npx_define.neuron_dir_path.glob(npx_define.get_cfg_filename_pattern(repeat_index, False)):
+      npx_module.load_state_dict(torch.load(history_cfg_path))
+      history_cfg_text_path = npx_define.rename_path_to_cfg_text(history_cfg_path)
+      npx_module.write_cfg(history_cfg_text_path)
+      npx_module.quantize_network()
+      npx_module.write_cfg(npx_define.rename_path_to_quant(history_cfg_text_path))
+      torch.save(npx_module.state_dict(), npx_define.rename_path_to_quant(history_cfg_path))
+
 if __name__ == '__main__':
   
   parser = argparse.ArgumentParser(description='NPX Framework')
@@ -147,10 +213,11 @@ if __name__ == '__main__':
   #parser.add_argument('-test_index', '-ti', help='')
   parser.add_argument('-dataset', '-d', help='dataset directory')
   parser.add_argument('-output', '-o', help='output directory')
+  parser.add_argument('-cfg', '-c', help='cfg file name')
 
   # check args
   args = parser.parse_args()
-  assert args.app
+  assert args.app or args.cfg
   assert args.cmd
   assert args.epoch
   assert args.neuron
@@ -175,24 +242,46 @@ if __name__ == '__main__':
     output_path.mkdir(parents=True)
   dataset_path = Path(args.dataset).absolute() if args.dataset else (output_path / 'dataset')
 
+  config_path = Path(args.cfg).absolute() if args.cfg else None
+
+  #print(config_path)
+  #print(config_path.name)
+
   # common env
   torch.manual_seed(1)
   npx_trainer = NpxTrainer()
 
-  # cmd
-  for app_name in app_name_list:
-    for train_neuron_str, test_neuron_str in neuron_list:    
-      npx_define = NpxDefine(app_name=app_name, train_neuron_str=train_neuron_str, test_neuron_str=test_neuron_str, output_path=output_path)
+  # cfg
+  if config_path != None:
+    if config_path.exists():
+      npx_define = NpxDefine(app_name=config_path.name[:-4], train_neuron_str=train_neuron_str, test_neuron_str=test_neuron_str, output_path=output_path)
+      print(npx_define.app_name)
       npx_data_manager = NpxDataManager(dataset_name=npx_define.dataset_name, dataset_path=dataset_path, num_kfold=num_kfold)
-      if 'reset' in cmd_list:
-        if npx_define.neuron_dir_path.is_dir():
-          shutil.rmtree(npx_define.neuron_dir_path)
-      if 'train' in cmd_list:
+      if 'train_cfg' in cmd_list:
         for repeat_index in range(num_repeat):
-          npx_trainer.train(npx_define=npx_define, npx_data_manager=npx_data_manager, repeat_index=repeat_index, num_epochs=num_epochs)
-      if 'quantize' in cmd_list:
+          npx_trainer.train_cfg(npx_define=npx_define, config_path=config_path, npx_data_manager=npx_data_manager, repeat_index=repeat_index, num_epochs=num_epochs)
+      if 'quantize_cfg' in cmd_list:
         for repeat_index in range(num_repeat):
-          npx_trainer.quantize(npx_define=npx_define, repeat_index=repeat_index)
-      if 'test' in cmd_list:
+          npx_trainer.quantize_cfg(npx_define=npx_define, config_path=config_path, repeat_index=repeat_index)
+      if 'test_cfg' in cmd_list:
         for repeat_index in range(num_repeat):
-          npx_trainer.test(npx_define=npx_define, npx_data_manager=npx_data_manager, repeat_index=repeat_index)
+          npx_trainer.test_cfg(npx_define=npx_define, config_path=config_path, npx_data_manager=npx_data_manager, repeat_index=repeat_index)
+
+  # cmd
+  if app_name_list != None:
+    for app_name in app_name_list:
+      for train_neuron_str, test_neuron_str in neuron_list:    
+        npx_define = NpxDefine(app_name=app_name, train_neuron_str=train_neuron_str, test_neuron_str=test_neuron_str, output_path=output_path)
+        npx_data_manager = NpxDataManager(dataset_name=npx_define.dataset_name, dataset_path=dataset_path, num_kfold=num_kfold)
+        if 'reset' in cmd_list:
+          if npx_define.neuron_dir_path.is_dir():
+            shutil.rmtree(npx_define.neuron_dir_path)
+        if 'train' in cmd_list:
+          for repeat_index in range(num_repeat):
+            npx_trainer.train(npx_define=npx_define, npx_data_manager=npx_data_manager, repeat_index=repeat_index, num_epochs=num_epochs)
+        if 'quantize' in cmd_list:
+          for repeat_index in range(num_repeat):
+            npx_trainer.quantize(npx_define=npx_define, repeat_index=repeat_index)
+        if 'test' in cmd_list:
+          for repeat_index in range(num_repeat):
+            npx_trainer.test(npx_define=npx_define, npx_data_manager=npx_data_manager, repeat_index=repeat_index)
