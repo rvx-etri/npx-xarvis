@@ -1,16 +1,22 @@
 from pathlib import *
 from collections import namedtuple
+from npx_text_parser import *
 
 TestResult = namedtuple('TestResult', ['acc', 'total', 'total_time', 'model_size'])
 RecordResult = namedtuple('RecordResult', ['dataset_name', 'train_neuron_str', 'test_neuron_str', 'repeat_index_str','epoch_index_str', 'val_accuracy_str', 'test_accuracy_str'])
 #CfgFilename = namedtuple('CfgFilename', ['prefix', 'repeat_index', 'epoch_index', 'value_type'])
 
 class NpxDefine:
-  def __init__(self, app_name:str, train_neuron_str:str, test_neuron_str:str, output_path:Path):
-    self.app_name = app_name
+  def __init__(self, net_cfg_path:Path, train_neuron_str:str, test_neuron_str:str, output_path:Path):
+    self.net_cfg_path = net_cfg_path
+    self.app_name = self.net_cfg_path.stem
     self.train_neuron_str = train_neuron_str
     self.test_neuron_str = test_neuron_str
     self.output_path = output_path
+
+    net_parser = NpxTextParser(self.net_cfg_path)
+    net_option = net_parser.section_list[0]
+    self.dataset = net_parser.find_option_value(net_option, 'dataset', 'mnist')
 
   @staticmethod
   def print_test_result(result:TestResult):
@@ -31,7 +37,7 @@ class NpxDefine:
 
   @property
   def dataset_name(self):
-    return self.app_name.split('_')[0]
+    return self.dataset
 
   @property
   def app_version(self):
