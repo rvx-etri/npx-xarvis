@@ -16,10 +16,14 @@ NEURON_TYPE_LIST=q8ssf
 NET_CFG_LIST=$(wildcard ${NET_CFG_DIR}/*.cfg)
 NET_CFG_NAME_LIST=$(basename $(notdir ${NET_CFG_LIST}))
 
+TEST=$(notdir ${NET_CFG_LIST})
 #$(addsuffix .train, ${APP_NAME_LIST}):%.train:
 #	@mkdir -p ./result/$(*)
 #	#@${PYTHON3_CMD} ${RVX_UTIL_HOME}/configure_template.py -i ./Makefile.app.template -o ${RESULT_DIR}/$(*)/Makefile -c GIT_BASE=$(GIT_BASE) APP_NAME=$(*)
 #	@${PYTHON3_CMD} ./npx_trainer.py -app $(*) -cmd train test -neuron ${NEURON_TYPE_LIST} -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR}
+
+tmp:
+	@echo $(TEST)
 
 $(addsuffix .train, ${NET_CFG_NAME_LIST}):%.train:
 	@mkdir -p ./result/$(*)
@@ -40,7 +44,9 @@ test:
 
 $(addsuffix .app_train, ${APP_NAME_LIST}):%.app_train:
 	@mkdir -p ./result/$(*)
-	@${PYTHON3_CMD} ./npx_trainer.py -app $(*) -cmd train test -neuron ${NEURON_TYPE_LIST} -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR} -p ${NET_CFG_DIR}
+	@${PYTHON3_CMD} ./npx_trainer.py -app $(*) -cmd app_cfg train test -neuron ${NEURON_TYPE_LIST} -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR} -p ${NET_CFG_DIR}
 
+$(addsuffix .app_cfg, ${APP_NAME_LIST}):%.app_cfg:
+	@${PYTHON3_CMD} ./npx_trainer.py -app $(*) -cmd app_cfg -neuron ${NEURON_TYPE_LIST} -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR} -p ${NET_CFG_DIR}
 #cfg:
 #	${PYTHON3_CMD} ./npx_gen_cfg.py -cfg ${NET_CFG_LIST} -neuron ${NEURON_TYPE_LIST} -dataset ${DATASET_DIR} -o ${RESULT_DIR}

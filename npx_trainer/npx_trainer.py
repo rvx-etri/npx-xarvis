@@ -193,13 +193,12 @@ if __name__ == '__main__':
 
   for app_name in app_name_list:
     for train_neuron_str, test_neuron_str in neuron_list:
-      npx_exam_app = NpxExamApp(app_name=app_name, neuron_type_str=train_neuron_str, 
-                                dataset_path=dataset_path, net_cfg_dir_path=net_cfg_dir_path)
-      # print(npx_exam_app.net_parser.section_list)
-      # print(npx_exam_app.net_cfg_path)
-      npx_exam_app.net_parser.print()
-      npx_exam_app.net_parser.save()
-      net_cfg_list.append(npx_exam_app.net_cfg_path)
+      if 'app_cfg' in cmd_list:
+        npx_exam_app = NpxExamApp(app_name=app_name, neuron_type_str=train_neuron_str, 
+                                  dataset_path=dataset_path, net_cfg_dir_path=net_cfg_dir_path)
+        # npx_exam_app.net_parser.print()
+        npx_exam_app.net_parser.save()
+        net_cfg_list.append(npx_exam_app.net_cfg_path)
 
   # cfg
   for net_cfg in net_cfg_list:
