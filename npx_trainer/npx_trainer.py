@@ -10,6 +10,7 @@ from npx_define import *
 from npx_data_manager import *
 from npx_module import *
 from npx_converter import *
+from npx_exam_app import *
 
 class NpxTrainer():
   def __init__(self, use_cuda:bool=None):
@@ -153,6 +154,7 @@ if __name__ == '__main__':
   parser.add_argument('-dataset', '-d', help='dataset directory')
   parser.add_argument('-output', '-o', help='output directory')
   parser.add_argument('-cfg', '-c', nargs='+', help='network cfg file name')
+  parser.add_argument('-cfg_dir', '-p', help='network cfg directory')
 
   # check args
   args = parser.parse_args()
@@ -161,9 +163,10 @@ if __name__ == '__main__':
   assert args.epoch
   assert args.neuron
   assert args.output
+  assert args.cfg_dir
 
-  app_name_list = args.app
-  net_cfg_list = args.cfg
+  app_name_list = args.app if args.app else []
+  net_cfg_list = args.app if args.cfg else []
   cmd_list = args.cmd
   num_epochs = int(args.epoch)
   neuron_list = []
@@ -181,16 +184,26 @@ if __name__ == '__main__':
     output_path.relative_to(Path('.').absolute())
     output_path.mkdir(parents=True)
   dataset_path = Path(args.dataset).absolute() if args.dataset else (output_path / 'dataset')
+  net_cfg_dir_path = Path(args.cfg_dir).absolute() if args.cfg_dir else (output_path / 'net_cfg')
 
   # common env
   torch.manual_seed(1)
   npx_trainer = NpxTrainer()
   npx_converter = NpxConverter()
 
-  #print(net_cfg_list)
+  for app_name in app_name_list:
+    for train_neuron_str, test_neuron_str in neuron_list:
+      npx_exam_app = NpxExamApp(app_name=app_name, neuron_type_str=train_neuron_str, 
+                                dataset_path=dataset_path, net_cfg_dir_path=net_cfg_dir_path)
+      # print(npx_exam_app.net_parser.section_list)
+      # print(npx_exam_app.net_cfg_path)
+      npx_exam_app.net_parser.print()
+      npx_exam_app.net_parser.save()
+      net_cfg_list.append(npx_exam_app.net_cfg_path)
+
   # cfg
   for net_cfg in net_cfg_list:
-    net_cfg_path = Path(net_cfg).absolute()
+    net_cfg_path = net_cfg_dir_path / net_cfg
     print(net_cfg_path)
     for train_neuron_str, test_neuron_str in neuron_list:
       npx_define = NpxDefine(net_cfg_path=net_cfg_path, train_neuron_str=train_neuron_str, test_neuron_str=test_neuron_str, output_path=output_path)

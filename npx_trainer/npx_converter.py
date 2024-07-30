@@ -30,7 +30,7 @@ class NpxConverter():
                            neuron_type_str=npx_define.train_neuron_str).to(self.device)
 
     for history_cfg_path in sorted(npx_define.neuron_dir_path.glob(npx_define.get_cfg_filename_pattern(repeat_index, True)),reverse=True):
-      print('load:', history_cfg_path)
+      print('\n[load model]', history_cfg_path)
       npx_module.load_state_dict(torch.load(history_cfg_path))
       bin_path = self.rename_path_to_cfg_bin(history_cfg_path)
       if not bin_path.is_file():

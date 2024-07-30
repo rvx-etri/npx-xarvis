@@ -15,6 +15,9 @@ class NpxDefine:
     self.output_path = output_path
 
     net_parser = NpxTextParser(self.net_cfg_path)
+    net_parser.parsing()
+    net_parser.save()
+    # print(net_parser.section_list)
     net_option = net_parser.section_list[0]
     self.dataset = net_parser.find_option_value(net_option, 'dataset', 'mnist')
 

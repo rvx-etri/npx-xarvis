@@ -45,6 +45,7 @@ class NpxModule(nn.Module):
     #self.reset_mechanism = 'zero'
     self.reset_mechanism = 'subtract'
     self.net_parser = NpxTextParser(self.net_cfg_path)
+    self.net_parser.parsing()
     self.layer_sequence = []
 
     net_option = self.net_parser.section_list[0]

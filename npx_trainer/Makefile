@@ -23,19 +23,24 @@ NET_CFG_NAME_LIST=$(basename $(notdir ${NET_CFG_LIST}))
 
 $(addsuffix .train, ${NET_CFG_NAME_LIST}):%.train:
 	@mkdir -p ./result/$(*)
-	@${PYTHON3_CMD} ./npx_trainer.py -cfg ${NET_CFG_DIR}/$(*).cfg -cmd train test -neuron ${NEURON_TYPE_LIST} -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR}
+	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(*).cfg -cmd train test -neuron ${NEURON_TYPE_LIST} -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR} -p ${NET_CFG_DIR}
 $(addsuffix .bin, ${NET_CFG_NAME_LIST}):%.bin:
-	@${PYTHON3_CMD} ./npx_trainer.py -cfg ${NET_CFG_DIR}/$(*).cfg -cmd inference sim binary -neuron ${NEURON_TYPE_LIST} -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR}
+	#@${PYTHON3_CMD} ./npx_trainer.py -cfg $(*).cfg -cmd inference sim binary -neuron ${NEURON_TYPE_LIST} -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR} -p ${NET_CFG_DIR}
+	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(*).cfg -cmd inference -neuron ${NEURON_TYPE_LIST} -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR} -p ${NET_CFG_DIR}
 $(addsuffix .tv, ${NET_CFG_NAME_LIST}):%.tv:
-	@${PYTHON3_CMD} ./npx_trainer.py -cfg ${NET_CFG_DIR}/$(*).cfg -cmd test_vector -neuron ${NEURON_TYPE_LIST} -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR}
+	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(*).cfg -cmd test_vector -neuron ${NEURON_TYPE_LIST} -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR} -p ${NET_CFG_DIR}
 $(addsuffix .reset, ${NET_CFG_NAME_LIST}):%.reset:
-	@${PYTHON3_CMD} ./npx_trainer.py -cfg ${NET_CFG_DIR}/$(*).cfg -cmd reset -neuron ${NEURON_TYPE_LIST} -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR}
+	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(*).cfg -cmd reset -neuron ${NEURON_TYPE_LIST} -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR} -p ${NET_CFG_DIR}
 
 $(addsuffix .train_check, ${APP_NAME_LIST}):%.train_check:
 	make $(*).train NEURON_TYPE_LIST=q6ssf NUM_EPOCH=3 NUM_REPEAT=1
 
 test:
 	make mnist_l2cf.train_check
+
+$(addsuffix .app_train, ${APP_NAME_LIST}):%.app_train:
+	@mkdir -p ./result/$(*)
+	@${PYTHON3_CMD} ./npx_trainer.py -app $(*) -cmd train test -neuron ${NEURON_TYPE_LIST} -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR} -p ${NET_CFG_DIR}
 
 #cfg:
 #	${PYTHON3_CMD} ./npx_gen_cfg.py -cfg ${NET_CFG_LIST} -neuron ${NEURON_TYPE_LIST} -dataset ${DATASET_DIR} -o ${RESULT_DIR}
