@@ -28,11 +28,14 @@ tmp:
 $(addsuffix .train, ${NET_CFG_NAME_LIST}):%.train:
 	@mkdir -p ./result/$(*)
 	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(*).cfg -cmd train test -neuron ${NEURON_TYPE_LIST} -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR} -p ${NET_CFG_DIR}
+
 $(addsuffix .bin, ${NET_CFG_NAME_LIST}):%.bin:
-	#@${PYTHON3_CMD} ./npx_trainer.py -cfg $(*).cfg -cmd inference sim binary -neuron ${NEURON_TYPE_LIST} -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR} -p ${NET_CFG_DIR}
-	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(*).cfg -cmd inference -neuron ${NEURON_TYPE_LIST} -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR} -p ${NET_CFG_DIR}
+	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(*).cfg -cmd inference sim binary -neuron ${NEURON_TYPE_LIST} -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR} -p ${NET_CFG_DIR}
+	#@${PYTHON3_CMD} ./npx_trainer.py -cfg $(*).cfg -cmd binary -neuron ${NEURON_TYPE_LIST} -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR} -p ${NET_CFG_DIR}
+
 $(addsuffix .tv, ${NET_CFG_NAME_LIST}):%.tv:
 	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(*).cfg -cmd test_vector -neuron ${NEURON_TYPE_LIST} -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR} -p ${NET_CFG_DIR}
+
 $(addsuffix .reset, ${NET_CFG_NAME_LIST}):%.reset:
 	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(*).cfg -cmd reset -neuron ${NEURON_TYPE_LIST} -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR} -p ${NET_CFG_DIR}
 

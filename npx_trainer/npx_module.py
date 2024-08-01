@@ -116,7 +116,7 @@ class NpxModule(nn.Module):
         neuron.mem = neuron.mem.clamp(min=0)
     return current
       
-  def print_cfg(self):
+  def print_parameter(self):
     for layer, neuron in self.layer_sequence:
       print(layer.weight)
       print(neuron.threshold)
@@ -130,7 +130,7 @@ class NpxModule(nn.Module):
       quantized_threshold = (neuron.threshold / qtensor.scale).round()
       neuron.threshold = type(neuron.threshold)(quantized_threshold)
 
-  def write_cfg(self, path:Path):
+  def write_parameter(self, path:Path):
     assert path.parent.is_dir(), path
     line_list = []
     for layer, neuron in self.layer_sequence:

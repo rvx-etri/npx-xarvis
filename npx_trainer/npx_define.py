@@ -46,25 +46,25 @@ class NpxDefine:
   def app_version(self):
     return f'{self.app_name}_{self.train_neuron_str}'
 
-  def get_cfg_filename_prefix(self, repeat_index:int):
-    return f'{self.app_version}_{repeat_index}_cfg'
+  def get_parameter_filename_prefix(self, repeat_index:int):
+    return f'{self.app_version}_{repeat_index}_parameter'
   
-  def get_cfg_path(self, repeat_index:int, epoch_index:int, is_quantized:bool):
-    filename = self.get_cfg_filename_prefix(repeat_index)
+  def get_parameter_path(self, repeat_index:int, epoch_index:int, is_quantized:bool):
+    filename = self.get_parameter_filename_prefix(repeat_index)
     filename += f'_{epoch_index:03d}'
     filename += '_quant' if is_quantized else '_float'
     filename += '.pt'
     return self.neuron_dir_path / filename
   
-  def get_cfg_filename_pattern(self, repeat_index:int, is_quantized:bool):
-    pattern = self.get_cfg_filename_prefix(repeat_index)
+  def get_parameter_filename_pattern(self, repeat_index:int, is_quantized:bool):
+    pattern = self.get_parameter_filename_prefix(repeat_index)
     pattern += f'_*'
     pattern += '_quant' if is_quantized else '_float'
     pattern += '.pt'
     return pattern
   
   @staticmethod
-  def rename_path_to_cfg_text(path:Path):
+  def rename_path_to_parameter_text(path:Path):
     assert path.suffix=='.pt', path
     return path.parent / f'{path.stem}.txt'
 
@@ -73,15 +73,15 @@ class NpxDefine:
     assert 'float' in path.stem, path 
     return path.parent / path.name.replace('float', 'quant')
 
-  def get_cfg_text_path(self, repeat_index:int, epoch_index:int, is_quantized:bool):
-    return self.rename_path_to_cfg_text(self.get_cfg_path(repeat_index,epoch_index,is_quantized))
+  def get_parameter_text_path(self, repeat_index:int, epoch_index:int, is_quantized:bool):
+    return self.rename_path_to_parameter_text(self.get_parameter_path(repeat_index,epoch_index,is_quantized))
   
   @staticmethod
-  def get_epoch_index_from_cfg_path(path:Path):
+  def get_epoch_index_from_parameter_path(path:Path):
     return int(path.stem.split('_')[-2])
 
   def get_test_prefix(self, repeat_index:int):
-    prefix = self.get_cfg_filename_prefix(repeat_index)
+    prefix = self.get_parameter_filename_prefix(repeat_index)
     prefix += f'_{self.test_neuron_str}'
     return prefix
 

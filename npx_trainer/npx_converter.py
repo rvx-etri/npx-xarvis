@@ -29,10 +29,10 @@ class NpxConverter():
     npx_module = NpxModule(net_cfg_path=npx_define.net_cfg_path, 
                            neuron_type_str=npx_define.train_neuron_str).to(self.device)
 
-    for history_cfg_path in sorted(npx_define.neuron_dir_path.glob(npx_define.get_cfg_filename_pattern(repeat_index, True)),reverse=True):
-      print('\n[load model]', history_cfg_path)
-      npx_module.load_state_dict(torch.load(history_cfg_path))
-      bin_path = self.rename_path_to_cfg_bin(history_cfg_path)
+    for history_parameter_path in sorted(npx_define.neuron_dir_path.glob(npx_define.get_parameter_filename_pattern(repeat_index, True)),reverse=True):
+      print('\n[load model]', history_parameter_path)
+      npx_module.load_state_dict(torch.load(history_parameter_path))
+      bin_path = self.rename_path_to_bin(history_parameter_path)
       if not bin_path.is_file():
         self.write_parameter_to_binaryfile(npx_module=npx_module, bin_path=bin_path)
 
@@ -44,9 +44,9 @@ class NpxConverter():
     npx_module = NpxModule(net_cfg_path=npx_define.net_cfg_path, 
                            neuron_type_str=npx_define.train_neuron_str).to(self.device)
     npx_module.eval()
-    for history_cfg_path in sorted(npx_define.neuron_dir_path.glob(npx_define.get_cfg_filename_pattern(repeat_index, True)),reverse=True):
-      npx_module.load_state_dict(torch.load(history_cfg_path))
-      tv_path = self.rename_path_to_test_vector(history_cfg_path)
+    for history_parameter_path in sorted(npx_define.neuron_dir_path.glob(npx_define.get_parameter_filename_pattern(repeat_index, True)),reverse=True):
+      npx_module.load_state_dict(torch.load(history_parameter_path))
+      tv_path = self.rename_path_to_test_vector(history_parameter_path)
       if not tv_path.is_file():
       #if True:
         data, target = next(iter(data_loader))
@@ -127,7 +127,7 @@ class NpxConverter():
       tv_file.close()
     return torch.stack(spk_rec), torch.stack(mem_rec)
 
-  def rename_path_to_cfg_bin(self, path:Path):
+  def rename_path_to_bin(self, path:Path):
     assert path.suffix=='.pt', path
     return path.parent / f'{path.stem}.bin'
   
@@ -191,9 +191,9 @@ class NpxConverter():
                              shuffle=True, drop_last=False)
     npx_module = NpxModule(net_cfg_path=npx_define.net_cfg_path, 
                            neuron_type_str=npx_define.train_neuron_str).to(self.device)
-    for history_cfg_path in sorted(npx_define.neuron_dir_path.glob(npx_define.get_cfg_filename_pattern(repeat_index, True)),reverse=True):
-      print(history_cfg_path)
-      npx_module.load_state_dict(torch.load(history_cfg_path))
+    for history_parameter_path in sorted(npx_define.neuron_dir_path.glob(npx_define.get_parameter_filename_pattern(repeat_index, True)),reverse=True):
+      print(history_parameter_path)
+      npx_module.load_state_dict(torch.load(history_parameter_path))
       npx_module.eval()
       data, target = next(iter(data_loader))
       data = data.to(self.device)
@@ -229,13 +229,13 @@ class NpxConverter():
   def sim(self, npx_define:NpxDefine, repeat_index:int, npx_data_manager:NpxDataManager):
     print('\n[TEST direct input vs rate-coding input]', npx_define.app_name, npx_define.test_neuron_str, repeat_index)
     npx_data_manager.setup_loader(repeat_index)
-    for history_cfg_path in sorted(npx_define.neuron_dir_path.glob(npx_define.get_cfg_filename_pattern(repeat_index, True)),reverse=True):
-      if history_cfg_path.is_file():
-        print(history_cfg_path)
-        npx_module = self.load_model_from_path(npx_define=npx_define, parameter_path=history_cfg_path)
+    for history_parameter_path in sorted(npx_define.neuron_dir_path.glob(npx_define.get_parameter_filename_pattern(repeat_index, True)),reverse=True):
+      if history_parameter_path.is_file():
+        print(history_parameter_path)
+        npx_module = self.load_model_from_path(npx_define=npx_define, parameter_path=history_parameter_path)
         test_result = self.test_once(npx_module, npx_data_manager.test_loader, spike_input=False)
         print(f'[Direct input] Accuracy: {(test_result.acc/test_result.total):.4f} / Time: {(test_result.total_time):.4f} sec')
-        npx_module = self.load_model_from_path(npx_define=npx_define, parameter_path=history_cfg_path)
+        npx_module = self.load_model_from_path(npx_define=npx_define, parameter_path=history_parameter_path)
         test_result = self.test_once(npx_module, npx_data_manager.test_loader, spike_input=True)
         print(f'[Rate-coding input] Accuracy: {(test_result.acc/test_result.total):.4f} / Time: {(test_result.total_time):.4f} sec')
         # break

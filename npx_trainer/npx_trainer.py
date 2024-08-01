@@ -30,11 +30,11 @@ class NpxTrainer():
 
     previous_epoch_index = -1
     previous_history_file = None
-    for history_cfg_path in npx_define.neuron_dir_path.glob(npx_define.get_cfg_filename_pattern(repeat_index, False)):
-      epoch_index = npx_define.get_epoch_index_from_cfg_path(history_cfg_path)
+    for history_parameter_path in npx_define.neuron_dir_path.glob(npx_define.get_parameter_filename_pattern(repeat_index, False)):
+      epoch_index = npx_define.get_epoch_index_from_parameter_path(history_parameter_path)
       if epoch_index > previous_epoch_index:
         previous_epoch_index = epoch_index
-        previous_history_file = history_cfg_path
+        previous_history_file = history_parameter_path
 
     start_epoch_index = previous_epoch_index + 1
     if previous_epoch_index>=0:
@@ -43,7 +43,7 @@ class NpxTrainer():
 
     for epoch_index in range(start_epoch_index, num_epochs):
       self.train_once(npx_module=npx_module, npx_data_manager=npx_data_manager, epoch_index=epoch_index)
-      torch.save(npx_module.state_dict(), npx_define.get_cfg_path(repeat_index,epoch_index, False))
+      torch.save(npx_module.state_dict(), npx_define.get_parameter_path(repeat_index,epoch_index, False))
       result = self.test_once(npx_module, npx_data_manager.test_loader)
       NpxDefine.print_test_result(result)
 
@@ -105,13 +105,13 @@ class NpxTrainer():
   def quantize(self, npx_define:NpxDefine, repeat_index:int):
     npx_module = NpxModule(net_cfg_path=npx_define.net_cfg_path, neuron_type_str=npx_define.train_neuron_str).to(self.device)
     npx_module.eval()
-    for history_cfg_path in npx_define.neuron_dir_path.glob(npx_define.get_cfg_filename_pattern(repeat_index, False)):
-      npx_module.load_state_dict(torch.load(history_cfg_path))
-      history_cfg_text_path = npx_define.rename_path_to_cfg_text(history_cfg_path)
-      npx_module.write_cfg(history_cfg_text_path)
+    for history_parameter_path in npx_define.neuron_dir_path.glob(npx_define.get_parameter_filename_pattern(repeat_index, False)):
+      npx_module.load_state_dict(torch.load(history_parameter_path))
+      history_parameter_text_path = npx_define.rename_path_to_parameter_text(history_parameter_path)
+      npx_module.write_parameter(history_parameter_text_path)
       npx_module.quantize_network()
-      npx_module.write_cfg(npx_define.rename_path_to_quant(history_cfg_text_path))
-      torch.save(npx_module.state_dict(), npx_define.rename_path_to_quant(history_cfg_path))
+      npx_module.write_parameter(npx_define.rename_path_to_quant(history_parameter_text_path))
+      torch.save(npx_module.state_dict(), npx_define.rename_path_to_quant(history_parameter_path))
 
   @staticmethod
   def format_test_result(npx_define:NpxDefine, repeat_index:int, epoch_index:int, val_result:TestResult, test_result:TestResult):
@@ -129,12 +129,12 @@ class NpxTrainer():
       result_list = []
       npx_data_manager.setup_loader(repeat_index)
       npx_module = NpxModule(net_cfg_path=npx_define.net_cfg_path, neuron_type_str=npx_define.train_neuron_str).to(self.device)
-      for history_cfg_path in sorted(npx_define.neuron_dir_path.glob(npx_define.get_cfg_filename_pattern(repeat_index, True)),reverse=True):
-        npx_module.load_state_dict(torch.load(history_cfg_path))
+      for history_parameter_path in sorted(npx_define.neuron_dir_path.glob(npx_define.get_parameter_filename_pattern(repeat_index, True)),reverse=True):
+        npx_module.load_state_dict(torch.load(history_parameter_path))
         val_result = self.test_once(npx_module, npx_data_manager.val_loader)
-        npx_module.load_state_dict(torch.load(history_cfg_path))
+        npx_module.load_state_dict(torch.load(history_parameter_path))
         test_result = self.test_once(npx_module, npx_data_manager.test_loader)
-        epoch_index = int(history_cfg_path.name.split('_')[-2])
+        epoch_index = int(history_parameter_path.name.split('_')[-2])
         result_list.append((epoch_index,val_result, test_result))
       line_list = []
       for epoch_index, val_result, test_result in result_list:
@@ -166,7 +166,7 @@ if __name__ == '__main__':
   assert args.cfg_dir
 
   app_name_list = args.app if args.app else []
-  net_cfg_list = args.app if args.cfg else []
+  net_cfg_list = args.cfg if args.cfg else []
   cmd_list = args.cmd
   num_epochs = int(args.epoch)
   neuron_list = []
