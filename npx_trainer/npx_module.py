@@ -36,11 +36,12 @@ class PotentialResult():
     return str((self.pacc,self.nacc,math.ceil(self.max/self.neuron_type.qmax)))
 
 class NpxModule(nn.Module):
-  def __init__(self, net_cfg_path:Path, neuron_type_str:NpxNeuronType):
+  def __init__(self, net_cfg_path:Path, neuron_type_str:str):
     super(NpxModule, self).__init__()
 
     self.net_cfg_path = net_cfg_path
     self.neuron_type = NpxNeuronType(neuron_type_str) if neuron_type_str else None
+    self.lif_threshold = 1.0
     self.train_threshold = False
     #self.reset_mechanism = 'zero'
     self.reset_mechanism = 'subtract'
@@ -183,8 +184,8 @@ class NpxModule(nn.Module):
   def make_neuron(self, layer_option, neuron_output):
     beta = int(self.net_parser.find_option_value(layer_option, 'beta', 1))
     reset_mechanism = self.net_parser.find_option_value(layer_option, 'reset_mechanism', 'subtract')
-    threshold = float(self.net_parser.find_option_value(layer_option, 'threshold', 1.0))
-    learn_threshold = self.net_parser.find_option_value(layer_option, 'learn_threshold', False)
-    neuron = snntorch.Leaky(beta=beta, threshold=threshold, init_hidden=True, 
-                reset_mechanism=reset_mechanism, learn_threshold=learn_threshold, output=neuron_output)
+    # threshold = float(self.net_parser.find_option_value(layer_option, 'threshold', 1.0))
+    # learn_threshold = self.net_parser.find_option_value(layer_option, 'learn_threshold', False)
+    neuron = snntorch.Leaky(beta=beta, threshold=self.lif_threshold, init_hidden=True, 
+                reset_mechanism=reset_mechanism, learn_threshold=self.train_threshold, output=neuron_output)
     return neuron
