@@ -24,24 +24,70 @@ class NpxConverter():
     self.device = torch.device("cuda" if self.use_cuda else "cpu")
     self.num_steps_to_train = 32
 
-  def binary(self, npx_define:NpxDefine, repeat_index:int):
-    print('\n[BINARY]', npx_define.app_name, npx_define.test_neuron_str, repeat_index)
-    npx_module = NpxModule(net_cfg_path=npx_define.net_cfg_path, 
+  def binary(self, npx_define:NpxDefine, npx_data_manager:NpxDataManager):
+    print('\n[BINARY]', npx_define.app_name, npx_define.test_neuron_str)
+    npx_module = NpxModule(app_cfg_path=npx_define.app_cfg_path, 
                            neuron_type_str=npx_define.train_neuron_str).to(self.device)
 
-    for history_parameter_path in sorted(npx_define.neuron_dir_path.glob(npx_define.get_parameter_filename_pattern(repeat_index, True)),reverse=True):
-      print('\n[load model]', history_parameter_path)
-      npx_module.load_state_dict(torch.load(history_parameter_path))
-      bin_path = self.rename_path_to_bin(history_parameter_path)
-      if not bin_path.is_file():
-        self.write_parameter_to_binaryfile(npx_module=npx_module, bin_path=bin_path)
+    best_result = self.get_best_result(npx_define)
+    #print(best_result)
+    print(f"*** Best Result ***\n"
+          f"Dataset: {best_result.dataset_name}\n"
+          f"train neuron type: {best_result.train_neuron_str}\n"
+          f"test neuron type: {best_result.test_neuron_str}\n"
+          f"repeat index: {best_result.repeat_index_str}\n"
+          f"epoch index: {best_result.epoch_index_str}\n"
+          f"Val Acc: {best_result.val_accuracy_str}\n"
+          f"Test Acc: {best_result.test_accuracy_str}\n"
+          )
+    best_parameter_path = self.get_parameter_file_path(app_path=npx_define.app_dir_path, result=best_result)
+    bin_path = self.get_parameter_binary_path(app_path=npx_define.app_dir_path, result=best_result)
+
+    npx_module.load_state_dict(torch.load(best_parameter_path))
+    if not bin_path.is_file():
+      self.write_parameter_to_binaryfile(npx_module=npx_module, bin_path=bin_path)
+
+  def get_parameter_file_path(self, app_path:Path, result:RecordResult):
+    parameter_file_path = app_path / f'{result.train_neuron_str}/{result.dataset_name}_{result.train_neuron_str}_{result.repeat_index_str}_parameter_{result.epoch_index_str}_quant.pt' 
+    return parameter_file_path
+
+  def get_parameter_binary_path(self, app_path:Path, result:RecordResult):
+    parameter_bin_path = app_path / f'{result.dataset_name}_{result.train_neuron_str}_{result.repeat_index_str}_parameter_{result.epoch_index_str}_quant.bin' 
+    return parameter_bin_path
+
+  def get_best_result(self, npx_define:NpxDefine):
+    app_path = npx_define.app_dir_path
+    if app_path.is_dir():
+      ## best result ##
+      single_learn_file_list = sorted(tuple(app_path.glob(f'{npx_define.dataset}_{npx_define.train_neuron_str}*{npx_define.test_neuron_str}_accuracy.txt')))
+
+      best_result_list = []
+      all_best_val_accuracy = 0
+      all_best_result = None
+      for single_learn_file in single_learn_file_list:
+        line_list = single_learn_file.read_text().split('\n')
+        best_val_accuracy = 0
+        best_learn_result = None
+        for line in line_list:
+          if line:
+            single_result = RecordResult(*line.split('|'))
+            val_accuracy = float(single_result.val_accuracy_str)
+            if val_accuracy > best_val_accuracy:
+              best_val_accuracy  = val_accuracy
+              best_learn_result = single_result
+            if val_accuracy > all_best_val_accuracy:
+              all_best_val_accuracy  = val_accuracy
+              all_best_result = single_result
+        best_result_list.append(best_learn_result)
+    
+    return all_best_result
 
   def test_vector(self, npx_define:NpxDefine, repeat_index:int,
             npx_data_manager:NpxDataManager, spike_input=True):
     print('\n[TEST VECTOR]', npx_define.app_name, npx_define.test_neuron_str, repeat_index)
     npx_data_manager.setup_loader(repeat_index)
     data_loader = DataLoader(npx_data_manager.dataset_test, batch_size=1, shuffle=False, drop_last=False)
-    npx_module = NpxModule(net_cfg_path=npx_define.net_cfg_path, 
+    npx_module = NpxModule(app_cfg_path=npx_define.app_cfg_path, 
                            neuron_type_str=npx_define.train_neuron_str).to(self.device)
     npx_module.eval()
     for history_parameter_path in sorted(npx_define.neuron_dir_path.glob(npx_define.get_parameter_filename_pattern(repeat_index, True)),reverse=True):
@@ -103,9 +149,7 @@ class NpxConverter():
       tv_file = open(tv_path,'wb')
     num_steps = self.num_steps_to_train
     for step in range(num_steps):
-    #for step in range(10):
       last_tensor = data[step]
-      # print(f'### step:{step}')
       for i, (layer, neuron) in enumerate(npx_module.layer_sequence):
         if type(layer)==nn.Linear:
           last_tensor = torch.flatten(last_tensor, 1)
@@ -115,9 +159,6 @@ class NpxConverter():
           torch.int8)
           self.write_data_aligned_by_4bytes(tv_file, current, torch.int32)
         last_tensor = neuron(current)
-        # print('current', current)
-        # print('mem', neuron.mem)
-        # print('spike out', last_tensor)
       spk_out, mem_out = last_tensor
       if tv_path:
         self.write_data_aligned_by_4bytes(tv_file, spk_out, torch.int8)
@@ -185,11 +226,11 @@ class NpxConverter():
 
   def inference_one_image(self, npx_define:NpxDefine, repeat_index:int,
             npx_data_manager:NpxDataManager, spike_input=True):
-    print('inference_one_image')
+    print('Inference one image')
     npx_data_manager.setup_loader(repeat_index)
     data_loader = DataLoader(npx_data_manager.dataset_test, batch_size=1,
                              shuffle=True, drop_last=False)
-    npx_module = NpxModule(net_cfg_path=npx_define.net_cfg_path, 
+    npx_module = NpxModule(app_cfg_path=npx_define.app_cfg_path, 
                            neuron_type_str=npx_define.train_neuron_str).to(self.device)
     for history_parameter_path in sorted(npx_define.neuron_dir_path.glob(npx_define.get_parameter_filename_pattern(repeat_index, True)),reverse=True):
       print(history_parameter_path)
@@ -204,7 +245,6 @@ class NpxConverter():
       else :
         input_data = data.repeat(tuple([num_steps] + torch.ones(len(data.size()), dtype=int).tolist()))
       spk_rec, _ = self.manual_forward_pass(npx_module, input_data)
-      # spk_rec, _ = self.forward_pass(npx_module, input_data)
       inference_class_id = spk_rec.sum(0).argmax()
       print('class id from inference: ', int(inference_class_id))
       print('class id from dataset: ', int(target))
@@ -212,19 +252,6 @@ class NpxConverter():
       break
 
   # from class NpxFramework()
-  def forward_pass(self, npx_module:NpxModule, data):
-    mem_rec = []
-    spk_rec = []
-    utils.reset(npx_module)  # resets hidden states for all LIF neurons in net
-
-    num_steps = self.num_steps_to_train
-    for step in range(num_steps):
-      spk_out, mem_out = npx_module(data[step])
-      spk_rec.append(spk_out)
-      mem_rec.append(mem_out)
-
-    return torch.stack(spk_rec), torch.stack(mem_rec)
-
   # direct input vs rate coding input
   def sim(self, npx_define:NpxDefine, repeat_index:int, npx_data_manager:NpxDataManager):
     print('\n[TEST direct input vs rate-coding input]', npx_define.app_name, npx_define.test_neuron_str, repeat_index)
@@ -238,7 +265,6 @@ class NpxConverter():
         npx_module = self.load_model_from_path(npx_define=npx_define, parameter_path=history_parameter_path)
         test_result = self.test_once(npx_module, npx_data_manager.test_loader, spike_input=True)
         print(f'[Rate-coding input] Accuracy: {(test_result.acc/test_result.total):.4f} / Time: {(test_result.total_time):.4f} sec')
-        # break
 
   def test_once(self, npx_module:NpxModule, data_loader, spike_input=False):
     npx_module.eval()
@@ -257,18 +283,74 @@ class NpxConverter():
         else :
           input_data = data.repeat(tuple([num_steps] + torch.ones(len(data.size()), dtype=int).tolist()))
         cur = time.time()
-        spk_rec, _ = self.forward_pass(npx_module, input_data)
-        # spk_rec, _ = self.manual_forward_pass(npx_module, input_data)
+        spk_rec, _ = self.manual_forward_pass(npx_module, input_data)
         acc += SF.accuracy_rate(spk_rec, target) * spk_rec.size(1)
         total_time += time.time() - cur
         total += spk_rec.size(1)
-        # break
     return TestResult(acc, total, total_time, model_size)
 
   def load_model_from_path(self, npx_define:NpxDefine, parameter_path:Path):
     print('\n[load model]', parameter_path)
     assert parameter_path.is_file()
-    npx_module = NpxModule(net_cfg_path=npx_define.net_cfg_path, 
+    npx_module = NpxModule(app_cfg_path=npx_define.app_cfg_path, 
                            neuron_type_str=npx_define.train_neuron_str).to(self.device)
     npx_module.load_state_dict(torch.load(parameter_path))
     return npx_module
+
+if __name__ == '__main__':
+
+  parser = argparse.ArgumentParser(description='NPX Framework')
+  parser.add_argument('-cfg', '-c', nargs='+', help='app cfg file name')
+  parser.add_argument('-cmd', nargs='+', help='command')
+  parser.add_argument('-epoch', '-e', help='number of epoch')
+  parser.add_argument('-kfold', '-k', help='number of k-fold')
+  parser.add_argument('-repeat', '-r', help='number of repeat')
+  parser.add_argument('-dataset', '-d', help='dataset directory')
+  parser.add_argument('-output', '-o', help='output directory')
+  parser.add_argument('-cfg_dir', '-p', help='app cfg directory')
+
+  # check args
+  args = parser.parse_args()
+  assert args.cfg
+  assert args.cmd
+  assert args.epoch
+  assert args.output
+  assert args.cfg_dir
+
+  app_cfg_list = args.cfg
+  cmd_list = args.cmd
+  num_epochs = int(args.epoch)
+
+  num_kfold = int(args.kfold) if args.kfold else 5
+  num_repeat = int(args.repeat) if args.repeat else 1
+  output_path = Path(args.output).absolute()
+  if not output_path.is_dir():
+    output_path.relative_to(Path('.').absolute())
+    output_path.mkdir(parents=True)
+  dataset_path = Path(args.dataset).absolute() if args.dataset else (output_path / 'dataset')
+  app_cfg_dir_path = Path(args.cfg_dir).absolute() if args.cfg_dir else (output_path / 'app_cfg')
+
+  # common env
+  torch.manual_seed(1)
+  npx_converter = NpxConverter()
+
+  # cfg
+  for app_cfg in app_cfg_list:
+    app_cfg_path = app_cfg_dir_path / app_cfg
+    #print(app_cfg_path)
+    npx_define = NpxDefine(app_cfg_path=app_cfg_path, output_path=output_path)
+    npx_data_manager = NpxDataManager(dataset_name=npx_define.dataset_name, dataset_path=dataset_path, num_kfold=num_kfold)
+    if 'inf' in cmd_list:
+      for repeat_index in range(num_repeat):
+        npx_converter.inference_one_image(npx_define=npx_define, repeat_index=repeat_index,
+                                          npx_data_manager=npx_data_manager, spike_input=True)
+    if 'sim' in cmd_list:
+      for repeat_index in range(num_repeat):
+        npx_converter.sim(npx_define=npx_define, repeat_index=repeat_index,
+                                 npx_data_manager=npx_data_manager)
+    if 'bin' in cmd_list:
+      npx_converter.binary(npx_define=npx_define, npx_data_manager=npx_data_manager)
+    if 'test_vector' in cmd_list:
+      for repeat_index in range(num_repeat):
+        npx_converter.test_vector(npx_define=npx_define, repeat_index=repeat_index,
+                                  npx_data_manager=npx_data_manager)

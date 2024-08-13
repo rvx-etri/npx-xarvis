@@ -2,6 +2,7 @@ from pathlib import *
 import math
 import copy
 import os
+import argparse
 
 import torch
 import torch.nn as nn
@@ -14,7 +15,7 @@ from npx_neuron_type import *
 from npx_data_manager import *
 
 class NpxExamApp(nn.Module):
-  def __init__(self, app_name:str, neuron_type_str:str, dataset_path:Path, net_cfg_dir_path:Path):
+  def __init__(self, app_name:str, neuron_type_str:str, dataset_path:Path, app_cfg_dir_path:Path):
     super(NpxExamApp, self).__init__()
 
     self.app_name = app_name
@@ -28,14 +29,14 @@ class NpxExamApp(nn.Module):
     # fc_lif_threshold = 1.0
 
     file_name = app_name + '.cfg'
-    self.net_cfg_path = net_cfg_dir_path / file_name
+    self.app_cfg_path = app_cfg_dir_path / file_name
 
     npx_data_manager = NpxDataManager(dataset_name=self.dataset_name, dataset_path=dataset_path, num_kfold=5)
     input_size = npx_data_manager.dataset_test[0][0].shape
     classes = len(dict(Counter(sample_tup[1] for sample_tup in npx_data_manager.dataset_test)))
 
-    # print(self.net_cfg_path)
-    self.net_parser = NpxTextParser(self.net_cfg_path)
+    # print(self.app_cfg_path)
+    self.net_parser = NpxTextParser(self.app_cfg_path)
 
     self.net_parser.add_section('network')
     self.net_parser.add_option(-1, 'dataset', self.dataset_name)
@@ -174,3 +175,43 @@ class NpxExamApp(nn.Module):
     self.net_parser.add_option(-1, 'input_type', input_type)
     self.net_parser.add_option(-1, 'output_type', output_type)
     self.net_parser.add_option(-1, 'reset_mechanism', reset_mechanism)
+
+if __name__ == '__main__':
+
+  parser = argparse.ArgumentParser(description='NPX Framework')
+  parser.add_argument('-app', '-a', nargs='+', help='example app name', default=[])
+  parser.add_argument('-neuron', '-n', nargs='+', help='types of neuron', default=['q8ssf'])
+  parser.add_argument('-dataset', '-d', help='dataset directory')
+  parser.add_argument('-cfg', '-c', nargs='+', help='app cfg file name', default=[])
+  parser.add_argument('-cfg_dir', '-p', help='app cfg directory', default='app')
+
+  # check args
+  args = parser.parse_args()
+  assert args.app
+  assert args.dataset
+  assert args.cfg_dir
+
+  exam_app_name_list = args.app
+
+  neuron_list = []
+  for neuron_set in args.neuron:
+    if '-' in neuron_set:
+      train_neuron_str, test_neuron_str = neuron_set.split('-')
+    else:
+      train_neuron_str = neuron_set
+      test_neuron_str = neuron_set
+    neuron_list.append((train_neuron_str,test_neuron_str))
+  dataset_path = Path(args.dataset).absolute()
+  if not dataset_path.is_dir():
+    dataset_path.relative_to(Path('.').absolute())
+    dataset_path.mkdir(parents=True)
+  app_cfg_dir_path = Path(args.cfg_dir).absolute()
+
+  #print(exam_app_name_list)
+  #print(neuron_list)
+  for app_name in exam_app_name_list:
+    for train_neuron_str, test_neuron_str in neuron_list:
+      npx_exam_app = NpxExamApp(app_name=app_name, neuron_type_str=train_neuron_str,
+                                dataset_path=dataset_path, app_cfg_dir_path=app_cfg_dir_path)
+      npx_exam_app.net_parser.print()
+      npx_exam_app.net_parser.save()

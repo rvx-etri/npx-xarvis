@@ -36,16 +36,16 @@ class PotentialResult():
     return str((self.pacc,self.nacc,math.ceil(self.max/self.neuron_type.qmax)))
 
 class NpxModule(nn.Module):
-  def __init__(self, net_cfg_path:Path, neuron_type_str:str):
+  def __init__(self, app_cfg_path:Path, neuron_type_str:str):
     super(NpxModule, self).__init__()
 
-    self.net_cfg_path = net_cfg_path
+    self.app_cfg_path = app_cfg_path
     self.neuron_type = NpxNeuronType(neuron_type_str) if neuron_type_str else None
     self.lif_threshold = 1.0
     self.train_threshold = False
     #self.reset_mechanism = 'zero'
     self.reset_mechanism = 'subtract'
-    self.net_parser = NpxTextParser(self.net_cfg_path)
+    self.net_parser = NpxTextParser(self.app_cfg_path)
     self.net_parser.parsing()
     self.layer_sequence = []
 

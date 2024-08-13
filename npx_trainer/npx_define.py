@@ -7,19 +7,20 @@ RecordResult = namedtuple('RecordResult', ['dataset_name', 'train_neuron_str', '
 #CfgFilename = namedtuple('CfgFilename', ['prefix', 'repeat_index', 'epoch_index', 'value_type'])
 
 class NpxDefine:
-  def __init__(self, net_cfg_path:Path, train_neuron_str:str, test_neuron_str:str, output_path:Path):
-    self.net_cfg_path = net_cfg_path
-    self.app_name = self.net_cfg_path.stem
-    self.train_neuron_str = train_neuron_str
-    self.test_neuron_str = test_neuron_str
+  def __init__(self, app_cfg_path:Path, output_path:Path):
+    self.app_cfg_path = app_cfg_path
+    self.app_name = self.app_cfg_path.stem
     self.output_path = output_path
 
-    net_parser = NpxTextParser(self.net_cfg_path)
+    net_parser = NpxTextParser(self.app_cfg_path)
     net_parser.parsing()
     net_parser.save()
     # print(net_parser.section_list)
     net_option = net_parser.section_list[0]
     self.dataset = net_parser.find_option_value(net_option, 'dataset', 'mnist')
+
+    self.train_neuron_str = net_parser.find_option_value(net_option, 'neuron_type', 'q8ssf')
+    self.test_neuron_str = self.train_neuron_str
 
   @staticmethod
   def print_test_result(result:TestResult):

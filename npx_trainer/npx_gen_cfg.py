@@ -47,17 +47,17 @@ class NpxGenCfg():
   def get_cfg_text_layer(self, layer):
     if type(layer)==nn.Linear:
       layer_text = '[fc]\n'
-      layer_text += f'inputs={layer.in_features}\n'
-      layer_text += f'outputs={layer.out_features}\n'
+      layer_text += f'in_features={layer.in_features}\n'
+      layer_text += f'out_features={layer.out_features}\n'
       layer_text += f'input_type=spike\n'
       layer_text += f'output_type=spike\n'
       layer_text += '\n'
     elif type(layer)==nn.Conv2d:
       layer_text = '[conv]\n'
-      layer_text += f'filters={layer.out_channels}\n'
-      layer_text += f'size={layer.kernel_size[0]}\n'
+      layer_text += f'out_channels={layer.out_channels}\n'
+      layer_text += f'kernel_size={layer.kernel_size[0]}\n'
       layer_text += f'stride={layer.stride[0]}\n'
-      layer_text += f'pad={layer.padding[0]}\n'
+      layer_text += f'padding={layer.padding[0]}\n'
       layer_text += f'input_type=spike\n'
       layer_text += f'output_type=spike\n'
       layer_text += '\n'
@@ -67,16 +67,16 @@ class NpxGenCfg():
     print(layer_text)
     return layer_text
 
-  def gen_net_cfg(self, npx_define:NpxDefine, npx_data_manager:NpxDataManager):
+  def gen_app_cfg(self, npx_define:NpxDefine, npx_data_manager:NpxDataManager):
     npx_module = NpxModule(app_name=npx_define.app_name, neuron_type_str=npx_define.train_neuron_str)
-    net_cfg_filename = f'{npx_define.app_name}_{npx_define.train_neuron_str}.cfg'
-    net_cfg_path = npx_define.app_dir_path / net_cfg_filename
-    print(net_cfg_path)
+    app_cfg_filename = f'{npx_define.app_name}_{npx_define.train_neuron_str}.cfg'
+    app_cfg_path = npx_define.app_dir_path / app_cfg_filename
+    print(app_cfg_path)
     if not npx_define.app_dir_path.is_dir():
       npx_define.app_dir_path.relative_to(Path('.').absolute())
       npx_define.app_dir_path.mkdir(parents=True)
 
-    with open(net_cfg_path, 'w') as f:
+    with open(app_cfg_path, 'w') as f:
       text = self.get_cfg_text_net(npx_define, npx_data_manager)
       f.write(text)
       for i, (layer, neuron) in enumerate(npx_module.layer_sequence):
@@ -131,4 +131,4 @@ if __name__ == '__main__':
       for train_neuron_str, test_neuron_str in neuron_list:    
         npx_define = NpxDefine(app_name=app_name, train_neuron_str=train_neuron_str, test_neuron_str=test_neuron_str, output_path=output_path)
         npx_data_manager = NpxDataManager(dataset_name=npx_define.dataset_name, dataset_path=dataset_path, num_kfold=num_kfold)
-        npx_trainer.gen_net_cfg(npx_define=npx_define, npx_data_manager=npx_data_manager)
+        npx_trainer.gen_app_cfg(npx_define=npx_define, npx_data_manager=npx_data_manager)
