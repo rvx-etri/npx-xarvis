@@ -48,7 +48,7 @@ class NpxDefine:
     return f'{self.app_name}_{self.train_neuron_str}'
 
   def get_parameter_filename_prefix(self, repeat_index:int):
-    return f'{self.app_version}_{repeat_index}_parameter'
+    return f'{self.app_version}_{repeat_index}'
   
   def get_parameter_path(self, repeat_index:int, epoch_index:int, is_quantized:bool):
     filename = self.get_parameter_filename_prefix(repeat_index)

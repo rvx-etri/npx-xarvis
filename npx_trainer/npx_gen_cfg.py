@@ -116,7 +116,7 @@ if __name__ == '__main__':
   dataset_path = Path(args.dataset).absolute() if args.dataset else (output_path / 'dataset')
 
   # common env
-  npx_trainer = NpxGenCfg()
+  npx_gen_cfg = NpxGenCfg()
 
   cfg_list  = args.cfg
   
@@ -131,4 +131,4 @@ if __name__ == '__main__':
       for train_neuron_str, test_neuron_str in neuron_list:    
         npx_define = NpxDefine(app_name=app_name, train_neuron_str=train_neuron_str, test_neuron_str=test_neuron_str, output_path=output_path)
         npx_data_manager = NpxDataManager(dataset_name=npx_define.dataset_name, dataset_path=dataset_path, num_kfold=num_kfold)
-        npx_trainer.gen_app_cfg(npx_define=npx_define, npx_data_manager=npx_data_manager)
+        npx_gen_cfg.gen_app_cfg(npx_define=npx_define, npx_data_manager=npx_data_manager)

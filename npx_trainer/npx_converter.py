@@ -30,7 +30,6 @@ class NpxConverter():
                            neuron_type_str=npx_define.train_neuron_str).to(self.device)
 
     best_result = self.get_best_result(npx_define)
-    #print(best_result)
     print(f"*** Best Result ***\n"
           f"Dataset: {best_result.dataset_name}\n"
           f"train neuron type: {best_result.train_neuron_str}\n"
@@ -40,27 +39,34 @@ class NpxConverter():
           f"Val Acc: {best_result.val_accuracy_str}\n"
           f"Test Acc: {best_result.test_accuracy_str}\n"
           )
-    best_parameter_path = self.get_parameter_file_path(app_path=npx_define.app_dir_path, result=best_result)
-    bin_path = self.get_parameter_binary_path(app_path=npx_define.app_dir_path, result=best_result)
 
+    best_parameter_path = self.get_parameter_file_path(npx_define=npx_define, result=best_result)
+    assert best_parameter_path.exists(), best_parameter_path
     npx_module.load_state_dict(torch.load(best_parameter_path))
+
+    bin_path = self.get_bin_path(npx_define=npx_define, result=best_result)
     if not bin_path.is_file():
       self.write_parameter_to_binaryfile(npx_module=npx_module, bin_path=bin_path)
 
-  def get_parameter_file_path(self, app_path:Path, result:RecordResult):
-    parameter_file_path = app_path / f'{result.train_neuron_str}/{result.dataset_name}_{result.train_neuron_str}_{result.repeat_index_str}_parameter_{result.epoch_index_str}_quant.pt' 
+  def get_parameter_file_path(self, npx_define:NpxDefine, result:RecordResult):
+    parameter_file_path = npx_define.get_parameter_path(repeat_index=int(result.repeat_index_str),
+                                  epoch_index=int(result.epoch_index_str),
+                                  is_quantized=True)
+    #print(parameter_file_path)
     return parameter_file_path
 
-  def get_parameter_binary_path(self, app_path:Path, result:RecordResult):
-    parameter_bin_path = app_path / f'{result.dataset_name}_{result.train_neuron_str}_{result.repeat_index_str}_parameter_{result.epoch_index_str}_quant.bin' 
-    return parameter_bin_path
+  def get_bin_path(self, npx_define:NpxDefine, result:RecordResult):
+    parameter_file_path = self.get_parameter_file_path(npx_define=npx_define, result=result)
+    bin_path = npx_define.app_dir_path / f'{parameter_file_path.stem}.bin'
+    #print(bin_path)
+    return bin_path
 
   def get_best_result(self, npx_define:NpxDefine):
     app_path = npx_define.app_dir_path
+    #print(app_path)
     if app_path.is_dir():
       ## best result ##
-      single_learn_file_list = sorted(tuple(app_path.glob(f'{npx_define.dataset}_{npx_define.train_neuron_str}*{npx_define.test_neuron_str}_accuracy.txt')))
-
+      single_learn_file_list = sorted(tuple(app_path.glob(f'{npx_define.app_name}_{npx_define.train_neuron_str}*{npx_define.test_neuron_str}_accuracy.txt')))
       best_result_list = []
       all_best_val_accuracy = 0
       all_best_result = None
@@ -91,6 +97,7 @@ class NpxConverter():
                            neuron_type_str=npx_define.train_neuron_str).to(self.device)
     npx_module.eval()
     for history_parameter_path in sorted(npx_define.neuron_dir_path.glob(npx_define.get_parameter_filename_pattern(repeat_index, True)),reverse=True):
+      assert history_parameter_path.exists(), history_parameter_path
       npx_module.load_state_dict(torch.load(history_parameter_path))
       tv_path = self.rename_path_to_test_vector(history_parameter_path)
       if not tv_path.is_file():
@@ -111,7 +118,7 @@ class NpxConverter():
       break
     
   def write_parameter_to_binaryfile(self, npx_module:NpxModule, bin_path:Path):
-    print('save bin file:', bin_path)
+    #print('save bin file:', bin_path)
     # print(npx_module.state_dict())
     with open(bin_path, "wb") as bin_file:
       for i, (layer, neuron) in enumerate(npx_module.layer_sequence):
@@ -233,7 +240,8 @@ class NpxConverter():
     npx_module = NpxModule(app_cfg_path=npx_define.app_cfg_path, 
                            neuron_type_str=npx_define.train_neuron_str).to(self.device)
     for history_parameter_path in sorted(npx_define.neuron_dir_path.glob(npx_define.get_parameter_filename_pattern(repeat_index, True)),reverse=True):
-      print(history_parameter_path)
+      #print(history_parameter_path)
+      assert history_parameter_path.exists(), history_parameter_path
       npx_module.load_state_dict(torch.load(history_parameter_path))
       npx_module.eval()
       data, target = next(iter(data_loader))
@@ -258,7 +266,7 @@ class NpxConverter():
     npx_data_manager.setup_loader(repeat_index)
     for history_parameter_path in sorted(npx_define.neuron_dir_path.glob(npx_define.get_parameter_filename_pattern(repeat_index, True)),reverse=True):
       if history_parameter_path.is_file():
-        print(history_parameter_path)
+        #print(history_parameter_path)
         npx_module = self.load_model_from_path(npx_define=npx_define, parameter_path=history_parameter_path)
         test_result = self.test_once(npx_module, npx_data_manager.test_loader, spike_input=False)
         print(f'[Direct input] Accuracy: {(test_result.acc/test_result.total):.4f} / Time: {(test_result.total_time):.4f} sec')
@@ -294,6 +302,7 @@ class NpxConverter():
     assert parameter_path.is_file()
     npx_module = NpxModule(app_cfg_path=npx_define.app_cfg_path, 
                            neuron_type_str=npx_define.train_neuron_str).to(self.device)
+    assert parameter_path.exists(), parameter_path
     npx_module.load_state_dict(torch.load(parameter_path))
     return npx_module
 
@@ -307,7 +316,6 @@ if __name__ == '__main__':
   parser.add_argument('-repeat', '-r', help='number of repeat')
   parser.add_argument('-dataset', '-d', help='dataset directory')
   parser.add_argument('-output', '-o', help='output directory')
-  parser.add_argument('-cfg_dir', '-p', help='app cfg directory')
 
   # check args
   args = parser.parse_args()
@@ -315,7 +323,6 @@ if __name__ == '__main__':
   assert args.cmd
   assert args.epoch
   assert args.output
-  assert args.cfg_dir
 
   app_cfg_list = args.cfg
   cmd_list = args.cmd
@@ -328,7 +335,6 @@ if __name__ == '__main__':
     output_path.relative_to(Path('.').absolute())
     output_path.mkdir(parents=True)
   dataset_path = Path(args.dataset).absolute() if args.dataset else (output_path / 'dataset')
-  app_cfg_dir_path = Path(args.cfg_dir).absolute() if args.cfg_dir else (output_path / 'app_cfg')
 
   # common env
   torch.manual_seed(1)
@@ -336,8 +342,8 @@ if __name__ == '__main__':
 
   # cfg
   for app_cfg in app_cfg_list:
-    app_cfg_path = app_cfg_dir_path / app_cfg
-    #print(app_cfg_path)
+    app_cfg_path = Path(app_cfg)
+    print(app_cfg_path)
     npx_define = NpxDefine(app_cfg_path=app_cfg_path, output_path=output_path)
     npx_data_manager = NpxDataManager(dataset_name=npx_define.dataset_name, dataset_path=dataset_path, num_kfold=num_kfold)
     if 'inf' in cmd_list:

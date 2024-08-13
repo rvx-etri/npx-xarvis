@@ -28,7 +28,9 @@ class NpxTrainer():
 
     previous_epoch_index = -1
     previous_history_file = None
+    print(npx_define.get_parameter_filename_pattern(repeat_index, False))
     for history_parameter_path in npx_define.neuron_dir_path.glob(npx_define.get_parameter_filename_pattern(repeat_index, False)):
+      print(history_parameter_path)
       epoch_index = npx_define.get_epoch_index_from_parameter_path(history_parameter_path)
       if epoch_index > previous_epoch_index:
         previous_epoch_index = epoch_index
@@ -158,7 +160,6 @@ if __name__ == '__main__':
   assert args.cmd
   assert args.epoch
   assert args.output
-  assert args.cfg_dir
 
   app_cfg_list = args.cfg
   cmd_list = args.cmd
@@ -171,7 +172,6 @@ if __name__ == '__main__':
     output_path.relative_to(Path('.').absolute())
     output_path.mkdir(parents=True)
   dataset_path = Path(args.dataset).absolute() if args.dataset else (output_path / 'dataset')
-  app_cfg_dir_path = Path(args.cfg_dir).absolute() if args.cfg_dir else (output_path / 'app_cfg')
 
   # common env
   torch.manual_seed(1)
@@ -179,7 +179,7 @@ if __name__ == '__main__':
 
   # cfg
   for app_cfg in app_cfg_list:
-    app_cfg_path = app_cfg_dir_path / app_cfg
+    app_cfg_path = Path(app_cfg)
     #print(app_cfg_path)
     npx_define = NpxDefine(app_cfg_path=app_cfg_path, output_path=output_path)
     npx_data_manager = NpxDataManager(dataset_name=npx_define.dataset_name, dataset_path=dataset_path, num_kfold=num_kfold)
