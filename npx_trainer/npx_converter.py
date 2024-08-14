@@ -21,15 +21,21 @@ def analyze_best_result(npx_define:NpxDefine):
       best_result = single_result
   return best_result
 
-def copy_best_parameter_text(npx_define:NpxDefine, best_result:RecordResult):
-  best_parameter_path = npx_define.get_parameter_text_path(int(best_result.repeat_index_str),int(best_result.epoch_index_str),True)
+def copy_best_parameter(npx_define:NpxDefine, best_result:RecordResult):
+  best_parameter_path = npx_define.get_parameter_path(int(best_result.repeat_index_str),int(best_result.epoch_index_str),True)
   assert best_parameter_path.is_file(), best_parameter_path
-  riscv_parameter_path = npx_define.get_riscv_parameter_text_path(True)
+  riscv_parameter_path = npx_define.get_riscv_parameter_path(True)
   npx_define.riscv_dir_path.mkdir(parents=True, exist_ok=True)
-  riscv_parameter_path.write_text(best_parameter_path.read_text())
+  riscv_parameter_path.write_bytes(best_parameter_path.read_bytes())
+  
+  best_parameter_text_path = npx_define.get_parameter_text_path(int(best_result.repeat_index_str),int(best_result.epoch_index_str),True)
+  if best_parameter_text_path.is_file():
+    riscv_parameter_text_path = npx_define.get_riscv_parameter_text_path(True)
+    npx_define.riscv_dir_path.mkdir(parents=True, exist_ok=True)
+    riscv_parameter_text_path.write_bytes(best_parameter_text_path.read_bytes())
 
 def generate_riscv_binary(npx_define:NpxDefine):
-  riscv_parameter_path = npx_define.get_riscv_parameter_text_path(True)
+  riscv_parameter_path = npx_define.get_riscv_parameter_path(True)
   assert riscv_parameter_path.is_file(), riscv_parameter_path
   
 if __name__ == '__main__':
@@ -54,6 +60,6 @@ if __name__ == '__main__':
     
     npx_define = NpxDefine(app_cfg_path=app_cfg_path, output_path=output_path)    
     best_result = analyze_best_result(npx_define)
-    copy_best_parameter_text(npx_define,best_result)
+    copy_best_parameter(npx_define,best_result)
     generate_riscv_binary(npx_define)
     

@@ -55,7 +55,7 @@ class NpxDefine:
   
   @staticmethod
   def parameter_suffix():
-    return '.bin'
+    return '.pt'
     
   def get_parameter_path(self, repeat_index:int, epoch_index:int, is_quantized:bool):
     filename = self.get_parameter_filename_prefix(repeat_index)
@@ -105,6 +105,13 @@ class NpxDefine:
   @staticmethod
   def get_repeat_index_from_report_path(path:Path):
     return int(path.stem.split('_')[-2][1:])
+  
+  def get_riscv_parameter_path(self, is_quantized:bool):
+    filename = self.app_name
+    filename += '_parameter'
+    filename += '_quant' if is_quantized else '_float'
+    filename += NpxDefine.parameter_suffix()
+    return self.riscv_dir_path / filename
   
   def get_riscv_parameter_text_path(self, is_quantized:bool):
     filename = self.app_name
