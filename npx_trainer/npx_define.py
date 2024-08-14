@@ -119,3 +119,10 @@ class NpxDefine:
     filename += '_quant' if is_quantized else '_float'
     filename += '.txt'
     return self.riscv_dir_path / filename
+
+  def get_riscv_parameter_bin_path(self, is_quantized:bool):
+    filename = self.app_name
+    filename += '_parameter'
+    filename += '_quant' if is_quantized else '_float'
+    filename += '.bin'
+    return self.riscv_dir_path / filename

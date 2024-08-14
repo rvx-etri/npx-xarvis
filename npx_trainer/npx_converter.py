@@ -3,6 +3,7 @@ import argparse
 from pathlib import *
 
 from npx_define import *
+from npx_module import *
   
 def analyze_best_result(npx_define:NpxDefine):
   line_list = []
@@ -37,6 +38,46 @@ def copy_best_parameter(npx_define:NpxDefine, best_result:RecordResult):
 def generate_riscv_binary(npx_define:NpxDefine):
   riscv_parameter_path = npx_define.get_riscv_parameter_path(True)
   assert riscv_parameter_path.is_file(), riscv_parameter_path
+
+  npx_module = NpxModule(app_cfg_path=npx_define.app_cfg_path,
+                       neuron_type_str=npx_define.train_neuron_str)
+  npx_module.load_state_dict(torch.load(riscv_parameter_path))
+
+  riscv_parameter_bin_path = npx_define.get_riscv_parameter_bin_path(True)
+  #print(riscv_parameter_bin_path)
+
+  if not riscv_parameter_bin_path.is_file():
+    write_parameter_to_binaryfile(npx_module=npx_module, bin_path=riscv_parameter_bin_path)
+
+def write_parameter_to_binaryfile(npx_module:NpxModule, bin_path:Path):
+  print('save riscv parameter bin file:', bin_path)
+  # print(npx_module.state_dict())
+  with open(bin_path, "wb") as bin_file:
+    for i, (layer, neuron) in enumerate(npx_module.layer_sequence):
+      weights = layer.weight.data.flatten()
+      threshold = neuron.threshold
+      write_data_aligned_by_4bytes(bin_file, weights, torch.int8)
+      write_data_aligned_by_4bytes(bin_file, threshold, torch.int32)
+
+def write_data_aligned_by_4bytes(file_io, data, data_type):
+  data = data.to(data_type).numpy().reshape(-1)
+  lenth = data.shape[0]
+  fill_len = 0
+  if (data_type == torch.int8) | (data_type == torch.uint8) :
+    if (lenth%4) > 0 :
+      fill_len = 4 - (lenth%4)
+  elif (data_type == torch.int16) :
+    if (lenth%2) > 0 :
+      fill_len = 2 - (lenth%2)
+  elif (data_type == torch.int32) :
+    fill_len = 0
+  else :
+    print(f'unsupported type {data_type} in write_data_aligned_by_4bytes')
+    return
+  if fill_len > 0:
+    fill_data = np.zeros(fill_len, dtype=data.dtype)
+    data = np.append(data, fill_data)
+  file_io.write(data)
   
 if __name__ == '__main__':
 
