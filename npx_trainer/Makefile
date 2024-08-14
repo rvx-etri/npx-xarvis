@@ -7,22 +7,21 @@ DATASET_DIR=${GIT_BASE}/dataset
 VERIFY_DIR=${GIT_BASE}/verify
 RESULT_DIR=${CURDIR}/result
 
-NUM_EPOCH=2
-NUM_REPEAT=1
+NUM_EPOCH=10
+NUM_REPEAT=5
 
 train:
 	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(CFG_FILE) -cmd train quantize test -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR}
 
-riscv:
-	@make train CFG_FILE=$(CFG_FILE)
-	@${PYTHON3_CMD} ./npx_converter.py -cfg $(CFG_FILE) -cmd bin -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR}
+riscv: train
+	@${PYTHON3_CMD} ./npx_converter.py -cfg $(CFG_FILE) -o ${RESULT_DIR}
 
 reset:
 	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(CFG_FILE) -cmd reset -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR}
 
 tv:
 	@make train CFG_FILE=$(CFG_FILE)
-	@${PYTHON3_CMD} ./npx_converter.py -cfg $(CFG_FILE) -cmd test_vector -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR}
+	@${PYTHON3_CMD} ./npx_converter_old.py -cfg $(CFG_FILE) -cmd test_vector -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR}
 
 EXAMPLE_APP_CFG_DIR=${CURDIR}/app
 APP_CFG_LIST=$(wildcard ${EXAMPLE_APP_CFG_DIR}/*.cfg)
@@ -40,8 +39,13 @@ $(addsuffix .reset, ${APP_CFG_NAME_LIST}):%.reset:
 $(addsuffix .tv, ${APP_CFG_NAME_LIST}):%.tv:
 	@make tv CFG_FILE=${EXAMPLE_APP_CFG_DIR}/$(*).cfg
 
-test:
-	@make train CFG_FILE=${EXAMPLE_APP_CFG_DIR}/mnist_app.cfg
+TEST_APP_CFG_FILE=${EXAMPLE_APP_CFG_DIR}/mnist_app.cfg
+
+test1:
+	@make train CFG_FILE=${TEST_APP_CFG_FILE} NUM_EPOCH=3 NUM_REPEAT=2
+
+test2:
+	@make riscv CFG_FILE=${TEST_APP_CFG_FILE} NUM_EPOCH=3 NUM_REPEAT=2
 
 APP_NAME_LIST=mnist_l2cf mnist_l2ff mnist_l3ccf mnist_l3fff mnist_l3cff mnist_l1f cifar10_l5cccff gtsrb_l5cccff
 NEURON_TYPE_LIST=q8ssf

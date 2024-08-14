@@ -71,7 +71,7 @@ class NpxGenCfg():
     npx_module = NpxModule(app_name=npx_define.app_name, neuron_type_str=npx_define.train_neuron_str)
     app_cfg_filename = f'{npx_define.app_name}_{npx_define.train_neuron_str}.cfg'
     app_cfg_path = npx_define.app_dir_path / app_cfg_filename
-    print(app_cfg_path)
+    #print(app_cfg_path)
     if not npx_define.app_dir_path.is_dir():
       npx_define.app_dir_path.relative_to(Path('.').absolute())
       npx_define.app_dir_path.mkdir(parents=True)
