@@ -52,6 +52,7 @@ class NpxModule(nn.Module):
     net_option = self.net_parser.section_list[0]
     layer_option_list = self.net_parser.section_list[1:]
     self.dataset = self.net_parser.find_option_value(net_option, 'dataset', 'mnist')
+    self.timesteps = int(self.net_parser.find_option_value(net_option, 'timesteps', 32))
     self.nlayer = len(layer_option_list)
     self.gen_layer_sequence(layer_option_list)
     # print(net_option, layer_option_list)

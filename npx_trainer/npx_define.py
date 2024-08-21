@@ -20,6 +20,7 @@ class NpxDefine:
 
     self.train_neuron_str = net_parser.find_option_value(net_option, 'neuron_type', 'q8ssf')
     self.test_neuron_str = self.train_neuron_str
+    self.timesteps = int(net_parser.find_option_value(net_option, 'timesteps', 32))
 
   @staticmethod
   def print_test_result(result:TestResult):
@@ -124,5 +125,20 @@ class NpxDefine:
     filename = self.app_name
     filename += '_parameter'
     filename += '_quant' if is_quantized else '_float'
+    filename += '.bin'
+    return self.riscv_dir_path / filename
+
+  def get_riscv_sample_bin_path(self, index:int, is_spike:bool):
+    filename = self.app_name
+    filename += '_sample'
+    filename += '_spike' if is_spike else '_value'
+    filename += f'_{index:03}'
+    filename += '.bin'
+    return self.riscv_dir_path / filename
+
+  def get_riscv_test_vector_bin_path(self, index:int):
+    filename = self.app_name
+    filename += '_tv'
+    filename += f'_{index:03}'
     filename += '.bin'
     return self.riscv_dir_path / filename

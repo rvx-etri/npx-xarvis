@@ -1,6 +1,7 @@
 import os
 import argparse
 from pathlib import *
+import numpy as np
 
 from npx_define import *
 from npx_module import *
@@ -60,7 +61,7 @@ def write_parameter_to_binaryfile(npx_module:NpxModule, bin_path:Path):
       write_data_aligned_by_4bytes(bin_file, threshold, torch.int32)
 
 def write_data_aligned_by_4bytes(file_io, data, data_type):
-  data = data.to(data_type).numpy().reshape(-1)
+  data = data.to('cpu').to(data_type).numpy().reshape(-1)
   lenth = data.shape[0]
   fill_len = 0
   if (data_type == torch.int8) | (data_type == torch.uint8) :

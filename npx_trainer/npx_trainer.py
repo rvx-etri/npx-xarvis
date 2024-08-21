@@ -14,7 +14,7 @@ class NpxTrainer():
   def __init__(self, use_cuda:bool=None):
     self.use_cuda = (use_cuda!=None) and torch.cuda.is_available()
     self.device = torch.device("cuda" if self.use_cuda else "cpu")
-    self.num_steps_to_train = 32
+    #self.num_steps_to_train = 32
     self.loss_function = SF.ce_rate_loss()
     self.log_interval = 100
 
@@ -94,7 +94,8 @@ class NpxTrainer():
     spk_rec = []
     utils.reset(npx_module)  # resets hidden states for all LIF neurons in net
 
-    num_steps = self.num_steps_to_train
+    #num_steps = self.num_steps_to_train
+    num_steps = npx_module.timesteps
     for step in range(num_steps):
       spk_out, mem_out = npx_module(data)
       spk_rec.append(spk_out)

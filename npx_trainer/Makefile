@@ -20,8 +20,8 @@ reset:
 	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(CFG_FILE) -cmd reset -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR}
 
 tv:
-	@make train CFG_FILE=$(CFG_FILE)
-	@${PYTHON3_CMD} ./npx_converter_old.py -cfg $(CFG_FILE) -cmd test_vector -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR}
+	@make riscv CFG_FILE=$(CFG_FILE)
+	@${PYTHON3_CMD} ./npx_test_vector.py -cfg $(CFG_FILE) -cmd test_vector -dataset ${DATASET_DIR} -o ${RESULT_DIR}
 
 EXAMPLE_APP_CFG_DIR=${CURDIR}/app
 APP_CFG_LIST=$(wildcard ${EXAMPLE_APP_CFG_DIR}/*.cfg)
@@ -46,6 +46,9 @@ test1:
 
 test2:
 	@make riscv CFG_FILE=${TEST_APP_CFG_FILE} NUM_EPOCH=3 NUM_REPEAT=2
+
+test3:
+	@make tv CFG_FILE=${TEST_APP_CFG_FILE} NUM_EPOCH=3 NUM_REPEAT=2
 
 APP_NAME_LIST=mnist_l2cf mnist_l2ff mnist_l3ccf mnist_l3fff mnist_l3cff mnist_l1f cifar10_l5cccff gtsrb_l5cccff
 NEURON_TYPE_LIST=q8ssf
