@@ -47,8 +47,9 @@ def generate_riscv_binary(npx_define:NpxDefine):
   riscv_parameter_bin_path = npx_define.get_riscv_parameter_bin_path(True)
   #print(riscv_parameter_bin_path)
 
-  if not riscv_parameter_bin_path.is_file():
-    write_parameter_to_binaryfile(npx_module=npx_module, bin_path=riscv_parameter_bin_path)
+  if riscv_parameter_bin_path.is_file():
+    riscv_parameter_bin_path.unlink()
+  write_parameter_to_binaryfile(npx_module=npx_module, bin_path=riscv_parameter_bin_path)
 
 def write_parameter_to_binaryfile(npx_module:NpxModule, bin_path:Path):
   print('save riscv parameter bin file:', bin_path)

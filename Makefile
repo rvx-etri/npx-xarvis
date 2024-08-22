@@ -1,5 +1,8 @@
 include ./rvx_init.mh
 
+config:
+	${PYTHON3_CMD} ${RVX_UTIL_HOME}/configure_template.py -i ./rvx_setup.sh.template -o ./rvx_setup.sh -c CURDIR=$(CURDIR)
+
 preinstall:
 	yum install sqlite-devel xz-devel # recompile python
 

@@ -136,9 +136,9 @@ class NpxDefine:
     filename += '.bin'
     return self.riscv_dir_path / filename
 
-  def get_riscv_test_vector_bin_path(self, index:int):
+  def get_riscv_testvector_bin_path(self, index:int):
     filename = self.app_name
-    filename += '_tv'
+    filename += '_testvector'
     filename += f'_{index:03}'
     filename += '.bin'
     return self.riscv_dir_path / filename

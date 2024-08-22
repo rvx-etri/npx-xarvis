@@ -1,0 +1,2 @@
+export XARVIS_HOME="${CURDIR}"
+export XARVIS_NPX_TRANIER_HOME=${XARVIS_HOME}/npx_trainer

@@ -51,7 +51,7 @@ def get_sample(npx_data_manager:NpxDataManager, num_sample:int):
 
   return sample_list 
 
-def test_vector(npx_define:NpxDefine, npx_data_manager:NpxDataManager, num_sample:int):
+def generate_testvector(npx_define:NpxDefine, npx_data_manager:NpxDataManager, num_sample:int):
   print('\n[TEST VECTOR]', npx_define.app_name)
 
   npx_module = NpxModule(app_cfg_path=npx_define.app_cfg_path, 
@@ -77,10 +77,10 @@ def test_vector(npx_define:NpxDefine, npx_data_manager:NpxDataManager, num_sampl
   spike_input = True
   for i, (data, target) in enumerate(sample_list):
     data, target = data.to(device), target.to(device)
-    riscv_test_vector_bin_path = npx_define.get_riscv_test_vector_bin_path(index=i)
+    riscv_testvector_bin_path = npx_define.get_riscv_testvector_bin_path(index=i)
     riscv_sample_spike_bin_path = npx_define.get_riscv_sample_bin_path(index=i, is_spike=True)
-    print(riscv_test_vector_bin_path)
-    #if not riscv_test_vector_bin_path.is_file():
+    print(riscv_testvector_bin_path)
+    #if not riscv_testvector_bin_path.is_file():
     if True:
       num_steps = npx_define.timesteps
       if spike_input:
@@ -91,7 +91,7 @@ def test_vector(npx_define:NpxDefine, npx_data_manager:NpxDataManager, num_sampl
         #print(input_data)
       else :
         input_data = data.repeat(tuple([num_steps] + torch.ones(len(data.size()), dtype=int).tolist()))
-      spk_rec, _ = manual_forward_pass(npx_module, input_data, tv_path=riscv_test_vector_bin_path)
+      spk_rec, _ = manual_forward_pass(npx_module, input_data, tv_path=riscv_testvector_bin_path)
       #spk_rec, _ = manual_forward_pass(npx_module, input_data)
       print(spk_rec.sum(0))
       inference_class_id = spk_rec.sum(0).argmax()
@@ -146,24 +146,21 @@ if __name__ == '__main__':
 
   app_cfg_list = args.cfg
   cmd_list = args.cmd
-  num_sample = args.sample
-  print(num_sample)
-
+  num_sample = int(args.sample)
+  
   num_kfold = 5
   output_path = Path(args.output).absolute()
-  if not output_path.is_dir():
-    output_path.relative_to(Path('.').absolute())
-    output_path.mkdir(parents=True)
+  assert output_path.is_dir(), output_path
   dataset_path = Path(args.dataset).absolute() if args.dataset else (output_path / 'dataset')
-
-  # common env
-  torch.manual_seed(1)
-
+  assert dataset_path.is_dir(), dataset_path
+  
   # cfg
   for app_cfg in app_cfg_list:
     app_cfg_path = Path(app_cfg)
     print(app_cfg_path)
     npx_define = NpxDefine(app_cfg_path=app_cfg_path, output_path=output_path)
     npx_data_manager = NpxDataManager(dataset_name=npx_define.dataset_name, dataset_path=dataset_path, num_kfold=num_kfold)
-    if 'test_vector' in cmd_list:
-      test_vector(npx_define=npx_define, npx_data_manager=npx_data_manager, num_sample=num_sample)
+    if 'testvector' in cmd_list:
+      generate_testvector(npx_define=npx_define, npx_data_manager=npx_data_manager, num_sample=num_sample)
+    else:
+      assert 0, cmd_list

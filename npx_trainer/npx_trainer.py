@@ -149,8 +149,8 @@ if __name__ == '__main__':
   parser.add_argument('-cfg', '-c', nargs='+', help='app cfg file name')
   parser.add_argument('-cmd', nargs='+', help='command')
   parser.add_argument('-epoch', '-e', help='number of epoch')
-  parser.add_argument('-kfold', '-k', help='number of k-fold')
-  parser.add_argument('-repeat', '-r', help='number of repeat')
+  parser.add_argument('-kfold', '-k', default=5, help='number of k-fold')
+  parser.add_argument('-repeat', '-r', default=1, help='number of repeat')
   #parser.add_argument('-test_index', '-ti', help='')
   parser.add_argument('-dataset', '-d', help='dataset directory')
   parser.add_argument('-output', '-o', help='output directory')
@@ -167,11 +167,10 @@ if __name__ == '__main__':
   cmd_list = args.cmd
   num_epochs = int(args.epoch)
   
-  num_kfold = int(args.kfold) if args.kfold else 5
-  num_repeat = int(args.repeat) if args.repeat else 1
+  num_kfold = int(args.kfold)
+  num_repeat = int(args.repeat)
   output_path = Path(args.output).absolute()
   if not output_path.is_dir():
-    output_path.relative_to(Path('.').absolute())
     output_path.mkdir(parents=True)
   dataset_path = Path(args.dataset).absolute() if args.dataset else (output_path / 'dataset')
 
