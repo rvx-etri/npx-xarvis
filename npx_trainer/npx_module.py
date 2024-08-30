@@ -183,7 +183,7 @@ class NpxModule(nn.Module):
         print('It is not layer option')
 
   def make_neuron(self, layer_option, neuron_output):
-    beta = int(self.net_parser.find_option_value(layer_option, 'beta', 1))
+    beta = float(self.net_parser.find_option_value(layer_option, 'beta', 1))
     reset_mechanism = self.net_parser.find_option_value(layer_option, 'reset_mechanism', 'subtract')
     # threshold = float(self.net_parser.find_option_value(layer_option, 'threshold', 1.0))
     # learn_threshold = self.net_parser.find_option_value(layer_option, 'learn_threshold', False)
