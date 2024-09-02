@@ -14,22 +14,19 @@ from npx_define import *
 from npx_neuron_type import *
 from npx_data_manager import *
 
-class NpxExamApp(nn.Module):
+class NpxAppCfgGenerator(nn.Module):
   def __init__(self, app_name:str, neuron_type_str:str, dataset_path:Path, app_cfg_dir_path:Path):
-    super(NpxExamApp, self).__init__()
+    super(NpxAppCfgGenerator, self).__init__()
 
     self.app_name = app_name
     self.neuron_type = NpxNeuronType(neuron_type_str) if neuron_type_str else None
     self.train_threshold = False
-    #self.reset_mechanism = 'zero'
-    self.reset_mechanism = 'subtract'
+    self.reset_mechanism = 'zero'
+    #self.reset_mechanism = 'subtract'
 
     # beta = 1
     # conv_lif_threshold = 1.0
     # fc_lif_threshold = 1.0
-
-    file_name = app_name + '.cfg'
-    self.app_cfg_path = app_cfg_dir_path / file_name
 
     npx_data_manager = NpxDataManager(dataset_name=self.dataset_name, dataset_path=dataset_path, num_kfold=5)
     input_size = npx_data_manager.dataset_test[0][0].shape
@@ -148,11 +145,15 @@ class NpxExamApp(nn.Module):
     
   @property
   def dataset_name(self):
-      return self.app_name.split('_')[0]
+    return self.app_name.split('_')[0]
       
   @property
   def num_layer(self):
-      return int(self.app_name.split('_')[1][1])
+    return int(self.app_name.split('_')[1][1])
+  
+  @property
+  def app_cfg_path(self):
+    return app_cfg_dir_path / f'{self.app_name}.cfg'
 
   def gen_fc_section(self, in_features:int, out_features:int, 
                      input_type='spike', output_type='spike', reset_mechanism='zero'):
@@ -183,13 +184,13 @@ if __name__ == '__main__':
   parser.add_argument('-neuron', '-n', nargs='+', help='types of neuron', default=['q8ssf'])
   parser.add_argument('-dataset', '-d', help='dataset directory')
   parser.add_argument('-cfg', '-c', nargs='+', help='app cfg file name', default=[])
-  parser.add_argument('-cfg_dir', '-p', help='app cfg directory', default='app')
+  parser.add_argument('-output', '-o', help='app cfg directory', default='./generated_cfg')
 
   # check args
   args = parser.parse_args()
   assert args.app
   assert args.dataset
-  assert args.cfg_dir
+  assert args.output
 
   exam_app_name_list = args.app
 
@@ -203,15 +204,16 @@ if __name__ == '__main__':
     neuron_list.append((train_neuron_str,test_neuron_str))
   dataset_path = Path(args.dataset).absolute()
   if not dataset_path.is_dir():
-    dataset_path.relative_to(Path('.').absolute())
     dataset_path.mkdir(parents=True)
-  app_cfg_dir_path = Path(args.cfg_dir).absolute()
+  app_cfg_dir_path = Path(args.output).absolute()
+  if not app_cfg_dir_path.is_dir():
+    app_cfg_dir_path.mkdir(parents=True)
 
   #print(exam_app_name_list)
   #print(neuron_list)
   for app_name in exam_app_name_list:
     for train_neuron_str, test_neuron_str in neuron_list:
-      npx_exam_app = NpxExamApp(app_name=app_name, neuron_type_str=train_neuron_str,
+      app_cfg_generator = NpxAppCfgGenerator(app_name=app_name, neuron_type_str=train_neuron_str,
                                 dataset_path=dataset_path, app_cfg_dir_path=app_cfg_dir_path)
-      npx_exam_app.net_parser.print()
-      npx_exam_app.net_parser.save()
+      app_cfg_generator.net_parser.print()
+      app_cfg_generator.net_parser.save()
