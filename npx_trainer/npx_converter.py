@@ -2,6 +2,7 @@ import os
 import argparse
 from pathlib import *
 import numpy as np
+import pickle
 
 from npx_define import *
 from npx_module import *
@@ -24,6 +25,9 @@ def analyze_best_result(npx_define:NpxDefine):
   return best_result
 
 def copy_best_parameter(npx_define:NpxDefine, best_result:RecordResult):
+  with open(npx_define.get_riscv_info_path(True),"wb") as f:
+    pickle.dump(best_result, f)
+  #npx_define.get_riscv_info_path(True).write_text(str(best_result))
   best_parameter_path = npx_define.get_parameter_path(int(best_result.repeat_index_str),int(best_result.epoch_index_str),True)
   assert best_parameter_path.is_file(), best_parameter_path
   riscv_parameter_path = npx_define.get_riscv_parameter_path(True)

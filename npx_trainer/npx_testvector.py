@@ -67,7 +67,7 @@ def generate_testvector(npx_define:NpxDefine, npx_data_manager:NpxDataManager, n
     value_data = (data*255).to(torch.uint8).numpy()
     value_target = target.to(torch.uint8).numpy()
     print(value_data, value_target)
-    riscv_sample_value_bin_path = npx_define.get_riscv_sample_bin_path(index=i, is_spike=False)
+    riscv_sample_value_bin_path = npx_define.get_riscv_sample_bin_path(i=i, is_spike=False)
     #save_sample(riscv_sample_value_bin_path, value_data, False, 4, 1, value_target)
     with open(riscv_sample_value_bin_path, "wb") as data_file:
       data_file.write(value_data)
@@ -77,8 +77,8 @@ def generate_testvector(npx_define:NpxDefine, npx_data_manager:NpxDataManager, n
   spike_input = True
   for i, (data, target) in enumerate(sample_list):
     data, target = data.to(device), target.to(device)
-    riscv_testvector_bin_path = npx_define.get_riscv_testvector_bin_path(index=i)
-    riscv_sample_spike_bin_path = npx_define.get_riscv_sample_bin_path(index=i, is_spike=True)
+    riscv_testvector_bin_path = npx_define.get_riscv_testvector_bin_path(i=i)
+    riscv_sample_spike_bin_path = npx_define.get_riscv_sample_bin_path(i=i, is_spike=True)
     print(riscv_testvector_bin_path)
     #if not riscv_testvector_bin_path.is_file():
     if True:

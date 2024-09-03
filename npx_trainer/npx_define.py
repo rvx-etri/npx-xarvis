@@ -116,6 +116,13 @@ class NpxDefine:
     filename += '_quant' if is_quantized else '_float'
     filename += NpxDefine.parameter_suffix()
     return self.riscv_dir_path / filename
+
+  def get_riscv_info_path(self, is_quantized:bool):
+    filename = self.app_name
+    filename += '_info'
+    filename += '_quant' if is_quantized else '_float'
+    filename += NpxDefine.parameter_suffix()
+    return self.riscv_dir_path / filename
   
   def get_riscv_parameter_text_path(self, is_quantized:bool):
     filename = self.app_name
@@ -131,17 +138,17 @@ class NpxDefine:
     filename += '.bin'
     return self.riscv_dir_path / filename
 
-  def get_riscv_sample_bin_path(self, index:int, is_spike:bool):
+  def get_riscv_sample_bin_path(self, i:int, is_spike:bool):
     filename = self.app_name
     filename += '_sample'
     filename += '_spike' if is_spike else '_value'
-    filename += f'_{index:03}'
+    filename += f'_{i:03}'
     filename += '.bin'
     return self.riscv_dir_path / filename
 
-  def get_riscv_testvector_bin_path(self, index:int):
+  def get_riscv_testvector_bin_path(self, i:int):
     filename = self.app_name
     filename += '_testvector'
-    filename += f'_{index:03}'
+    filename += f'_{i:03}'
     filename += '.bin'
     return self.riscv_dir_path / filename

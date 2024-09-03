@@ -70,5 +70,5 @@ class NpxTextParser():
     if (section_id < len(self.section_list)) & (section_id >= -len(self.section_list)):
       self.section_list[section_id].update({key: value})
     else: 
-      print(f'section_id: {section_id} is out of index range for section list. ( < {len(self.section_list)}])')
+      print(f'section_id: {section_id} is out of i range for section list. ( < {len(self.section_list)}])')
       assert 0, section_id

@@ -26,6 +26,8 @@ class PotentialResult():
   def update(self, result):
     self.pacc = max(self.pacc,result.pacc)
     self.nacc = max(self.nacc,result.nacc)
+    
+  # self.training is changed by train() and eval()
 
   @property
   def max(self):
@@ -36,10 +38,11 @@ class PotentialResult():
     return str((self.pacc,self.nacc,math.ceil(self.max/self.neuron_type.qscale)))
 
 class NpxModule(nn.Module):
-  def __init__(self, app_cfg_path:Path, neuron_type_str:str):
+  def __init__(self, app_cfg_path:Path, neuron_type_str:str='q8ssf', neuron_type_class=NpxNeuronType):
     super().__init__()
+    self.neuron_type_class = neuron_type_class
 
-    self.neuron_type = NpxNeuronType(neuron_type_str) if neuron_type_str else None
+    self.neuron_type = self.neuron_type_class(neuron_type_str) if neuron_type_str else None
     self.app_cfg_path = app_cfg_path
     if self.app_cfg_path and self.app_cfg_path.is_file():
       self.lif_threshold = 1.0
@@ -62,11 +65,11 @@ class NpxModule(nn.Module):
 
   @property
   def dataset_name(self):
-      return self.dataset
+    return self.dataset
       
   @property
   def num_layer(self):
-      return self.nlayer
+    return self.nlayer
 
   @property
   def can_learn_threshold(self):
@@ -97,7 +100,7 @@ class NpxModule(nn.Module):
 
     return last_tensor
 
-  def forward_layer(self, index:int, layer, x:Tensor):
+  def forward_layer(self, i:int, layer, x:Tensor):
     if self.training and self.neuron_type:
       original_tensor = copy.deepcopy(layer.weight.data)
       qtensor = self.neuron_type.quantize_tensor(layer.weight.data, bounded=True)
@@ -109,7 +112,7 @@ class NpxModule(nn.Module):
       layer.weight.data = original_tensor
     return current
       
-  def forward_neuron(self, index:int, neuron, x:Tensor):
+  def forward_neuron(self, i:int, neuron, x:Tensor):
     if self.training and self.train_threshold and self.can_learn_threshold:
       qtensor = self.neuron_type.quantize_tensor(neuron.threshold, bounded=False)
       neuron.threshold = type(neuron.threshold)(self.neuron_type.dequantize_tensor(qtensor))
