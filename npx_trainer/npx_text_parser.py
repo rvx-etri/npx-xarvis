@@ -8,7 +8,7 @@ import re
 
 class NpxTextParser():
   def __init__(self, path:Path):
-    super(NpxTextParser, self).__init__()
+    super().__init__()
 
     self.path = path
     self.find_section_name = re.compile('\[([^]]+)\]').findall

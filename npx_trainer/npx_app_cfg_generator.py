@@ -16,7 +16,7 @@ from npx_data_manager import *
 
 class NpxAppCfgGenerator(nn.Module):
   def __init__(self, app_name:str, neuron_type_str:str, dataset_path:Path, app_cfg_dir_path:Path):
-    super(NpxAppCfgGenerator, self).__init__()
+    super().__init__()
 
     self.app_name = app_name
     self.neuron_type = NpxNeuronType(neuron_type_str) if neuron_type_str else None

@@ -44,22 +44,26 @@ class NpxNeuronType():
     return -int(2.**(self.num_bits-1))
   
   @property
-  def qmax(self):
+  def qscale(self):
     return (self.smax + 1) if self.is_signed_weight else (self.umax + 1)
+  
+  @property
+  def qmax(self):
+    return self.qscale-1
 
   @property
   def qmin(self):
     return self.smin if self.is_signed_weight else 0
 
-  def quantize_tensor(self, x:Tensor, bounded:bool=True):
+  def quantize_tensor(self, x:Tensor, bounded:bool):
     fval_max = 1.0
 
-    scale = fval_max / self.qmax
+    scale = fval_max / self.qscale
     
-    qx = x*self.qmax/fval_max # x/scale
+    qx = x*self.qscale/fval_max # x/scale
 
     if bounded:
-      qx.clamp_(self.qmin, self.qmax-1)
+      qx.clamp_(self.qmin, self.qmax)
     qx.round_()
     return QTensor(qx, scale, 0)
 

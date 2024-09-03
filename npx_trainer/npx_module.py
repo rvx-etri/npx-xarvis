@@ -33,31 +33,32 @@ class PotentialResult():
 
   def __repr__(self):
     assert self.neuron_type
-    return str((self.pacc,self.nacc,math.ceil(self.max/self.neuron_type.qmax)))
+    return str((self.pacc,self.nacc,math.ceil(self.max/self.neuron_type.qscale)))
 
 class NpxModule(nn.Module):
   def __init__(self, app_cfg_path:Path, neuron_type_str:str):
-    super(NpxModule, self).__init__()
+    super().__init__()
 
-    self.app_cfg_path = app_cfg_path
     self.neuron_type = NpxNeuronType(neuron_type_str) if neuron_type_str else None
-    self.lif_threshold = 1.0
-    self.train_threshold = False
-    #self.reset_mechanism = 'zero'
-    self.reset_mechanism = 'subtract'
-    self.net_parser = NpxTextParser(self.app_cfg_path)
-    self.net_parser.parsing()
-    self.layer_sequence = []
+    self.app_cfg_path = app_cfg_path
+    if self.app_cfg_path and self.app_cfg_path.is_file():
+      self.lif_threshold = 1.0
+      self.train_threshold = False
+      #self.reset_mechanism = 'zero'
+      self.reset_mechanism = 'subtract'
+      self.net_parser = NpxTextParser(self.app_cfg_path)
+      self.net_parser.parsing()
+      self.layer_sequence = []
 
-    net_option = self.net_parser.section_list[0]
-    layer_option_list = self.net_parser.section_list[1:]
-    self.dataset = self.net_parser.find_option_value(net_option, 'dataset', 'mnist')
-    self.timesteps = int(self.net_parser.find_option_value(net_option, 'timesteps', 32))
-    self.nlayer = len(layer_option_list)
-    self.gen_layer_sequence(layer_option_list)
-    # print(net_option, layer_option_list)
+      net_option = self.net_parser.section_list[0]
+      layer_option_list = self.net_parser.section_list[1:]
+      self.dataset = self.net_parser.find_option_value(net_option, 'dataset', 'mnist')
+      self.timesteps = int(self.net_parser.find_option_value(net_option, 'timesteps', 32))
+      self.nlayer = len(layer_option_list)
+      self.gen_layer_sequence(layer_option_list)
+      # print(net_option, layer_option_list)
 
-    self.set_train_mode(self.train_threshold)
+      self.set_train_mode(self.train_threshold)
 
   @property
   def dataset_name(self):
@@ -91,15 +92,15 @@ class NpxModule(nn.Module):
     for i, (layer, neuron) in enumerate(self.layer_sequence):
       if type(layer)==nn.Linear:
         last_tensor = torch.flatten(last_tensor, 1)
-      current = self.forward_layer(layer, last_tensor)
-      last_tensor = self.forward_neuron(neuron, current)
+      current = self.forward_layer(i, layer, last_tensor)
+      last_tensor = self.forward_neuron(i, neuron, current)
 
     return last_tensor
 
-  def forward_layer(self, layer, x:Tensor):
+  def forward_layer(self, index:int, layer, x:Tensor):
     if self.training and self.neuron_type:
       original_tensor = copy.deepcopy(layer.weight.data)
-      qtensor = self.neuron_type.quantize_tensor(layer.weight.data)
+      qtensor = self.neuron_type.quantize_tensor(layer.weight.data, bounded=True)
       layer.weight.data = self.neuron_type.dequantize_tensor(qtensor)
     current = layer(x)
     if self.training and self.neuron_type:
@@ -108,7 +109,7 @@ class NpxModule(nn.Module):
       layer.weight.data = original_tensor
     return current
       
-  def forward_neuron(self, neuron, x:Tensor):
+  def forward_neuron(self, index:int, neuron, x:Tensor):
     if self.training and self.train_threshold and self.can_learn_threshold:
       qtensor = self.neuron_type.quantize_tensor(neuron.threshold, bounded=False)
       neuron.threshold = type(neuron.threshold)(self.neuron_type.dequantize_tensor(qtensor))
@@ -127,7 +128,7 @@ class NpxModule(nn.Module):
     assert not self.training
     assert self.neuron_type
     for layer, neuron in self.layer_sequence:
-      qtensor = self.neuron_type.quantize_tensor(layer.weight.data)
+      qtensor = self.neuron_type.quantize_tensor(layer.weight.data, bounded=True)
       layer.weight.data = qtensor.tensor.float()
       quantized_threshold = (neuron.threshold / qtensor.scale).round()
       neuron.threshold = type(neuron.threshold)(quantized_threshold)

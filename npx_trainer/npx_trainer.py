@@ -11,18 +11,19 @@ from npx_data_manager import *
 from npx_module import *
 
 class NpxTrainer():
-  def __init__(self, use_cuda:bool=None):
+  def __init__(self, module_class=NpxModule, use_cuda:bool=None):
     self.use_cuda = (use_cuda!=None) and torch.cuda.is_available()
     self.device = torch.device("cuda" if self.use_cuda else "cpu")
     #self.num_steps_to_train = 32
     self.loss_function = SF.ce_rate_loss()
     self.log_interval = 100
+    self.module_class = module_class
 
   def train(self, npx_define:NpxDefine, repeat_index:int, npx_data_manager:NpxDataManager, num_epochs:int):
     print('\n[TRAIN]', npx_define.app_name, npx_define.train_neuron_str, repeat_index, num_epochs)
     npx_data_manager.setup_loader(repeat_index)
     npx_define.parameter_dir_path.mkdir(parents=True, exist_ok=True)
-    npx_module = NpxModule(app_cfg_path=npx_define.app_cfg_path, neuron_type_str=npx_define.train_neuron_str).to(self.device)
+    npx_module = self.module_class(app_cfg_path=npx_define.app_cfg_path, neuron_type_str=npx_define.train_neuron_str).to(self.device)
     #print(npx_module)
     #print(npx_module.layer_sequence)
 
@@ -104,7 +105,7 @@ class NpxTrainer():
     return torch.stack(spk_rec), torch.stack(mem_rec)
 
   def quantize(self, npx_define:NpxDefine, repeat_index:int):
-    npx_module = NpxModule(app_cfg_path=npx_define.app_cfg_path, neuron_type_str=npx_define.test_neuron_str).to(self.device)
+    npx_module = self.module_class(app_cfg_path=npx_define.app_cfg_path, neuron_type_str=npx_define.test_neuron_str).to(self.device)
     npx_module.eval()
     for history_parameter_path in npx_define.parameter_dir_path.glob(npx_define.get_parameter_filename_pattern(repeat_index, False)):
       npx_module.load_state_dict(torch.load(history_parameter_path))
@@ -127,10 +128,12 @@ class NpxTrainer():
     self.quantize(npx_define=npx_define, repeat_index=repeat_index)
 
     report_path = npx_define.get_report_path(repeat_index)
-    if not report_path.is_file():
+    if report_path.is_file():
+      npx_module = None
+    else:
       result_list = []
       npx_data_manager.setup_loader(repeat_index)
-      npx_module = NpxModule(app_cfg_path=npx_define.app_cfg_path, neuron_type_str=npx_define.test_neuron_str).to(self.device)
+      npx_module = self.module_class(app_cfg_path=npx_define.app_cfg_path, neuron_type_str=npx_define.test_neuron_str).to(self.device)
       for history_parameter_path in sorted(npx_define.parameter_dir_path.glob(npx_define.get_parameter_filename_pattern(repeat_index, True)),reverse=True):
         npx_module.load_state_dict(torch.load(history_parameter_path))
         val_result = self.test_once(npx_module, npx_data_manager.val_loader)
@@ -142,6 +145,7 @@ class NpxTrainer():
       for epoch_index, val_result, test_result in result_list:
         line_list.append(NpxTrainer.format_test_result(npx_define, repeat_index, epoch_index, val_result, test_result))
       npx_define.get_report_path(repeat_index).write_text('\n'.join(line_list))
+    return npx_module
 
 if __name__ == '__main__':
   

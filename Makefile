@@ -1,7 +1,9 @@
 include ./rvx_init.mh
 
 config:
-	${PYTHON3_CMD} ${RVX_UTIL_HOME}/configure_template.py -i ./rvx_setup.sh.template -o ./rvx_setup.sh -c CURDIR=$(CURDIR)
+	#${PYTHON3_CMD} ${RVX_UTIL_HOME}/configure_template.py -i ./rvx_setup.sh.template -o ./rvx_setup.sh -c CURDIR=$(CURDIR)
+	@echo "export XARVIS_HOME=${CURDIR}" > ./rvx_setup.sh
+	@echo "export XARVIS_NPX_TRANIER_HOME=${CURDIR}/npx_trainer" >> ./rvx_setup.sh
 
 preinstall:
 	yum install sqlite-devel xz-devel # recompile python

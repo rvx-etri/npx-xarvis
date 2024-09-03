@@ -103,6 +103,9 @@ class NpxDefine:
     pattern += '_*_accuracy.txt'
     return pattern
   
+  def get_analysis_path(self, repeat_index:int):
+    return self.report_dir_path  / f'{self.get_test_prefix(repeat_index)}_analysis.txt'
+  
   @staticmethod
   def get_repeat_index_from_report_path(path:Path):
     return int(path.stem.split('_')[-2][1:])
