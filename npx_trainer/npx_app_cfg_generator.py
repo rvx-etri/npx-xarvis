@@ -8,34 +8,32 @@ import torch
 import torch.nn as nn
 import snntorch
 
-from collections import Counter
-
 from npx_define import *
 from npx_neuron_type import *
 from npx_data_manager import *
 
 class NpxAppCfgGenerator():
-  def __init__(self, app_name:str, neuron_type_str:str, dataset_path:Path, app_cfg_dir_path:Path):
+  def __init__(self):
+    pass
+
+  def generate_predifined_app(self, app_name:str, neuron_type_str:str, dataset_path:Path):
     self.app_name = app_name
     self.neuron_type = NpxNeuronType(neuron_type_str) if neuron_type_str else None
 
     npx_data_manager = NpxDataManager(dataset_name=self.dataset_name, dataset_path=dataset_path, num_kfold=5)
-    input_size = npx_data_manager.dataset_test[0][0].shape
-    classes = len(dict(Counter(sample_tup[1] for sample_tup in npx_data_manager.dataset_test)))
 
     # print(self.app_cfg_path)
-    self.network_parser = NpxTextParser(self.app_cfg_path)
+    self.text_parser = NpxTextParser()
+    self.text_parser.add_section('network')
+    self.text_parser.add_option(-1, 'dataset', self.dataset_name)
+    self.text_parser.add_option(-1, 'neuron_type', neuron_type_str)
+    self.text_parser.add_option(-1, 'height', npx_data_manager.input_size[1])
+    self.text_parser.add_option(-1, 'weigth', npx_data_manager.input_size[2])
+    self.text_parser.add_option(-1, 'channels', npx_data_manager.input_size[0])
+    self.text_parser.add_option(-1, 'timesteps', 32)
+    self.text_parser.add_option(-1, 'classes', npx_data_manager.num_classes)
 
-    self.network_parser.add_section('network')
-    self.network_parser.add_option(-1, 'dataset', self.dataset_name)
-    self.network_parser.add_option(-1, 'neuron_type', neuron_type_str)
-    self.network_parser.add_option(-1, 'height', input_size[1])
-    self.network_parser.add_option(-1, 'weigth', input_size[2])
-    self.network_parser.add_option(-1, 'channels', input_size[0])
-    self.network_parser.add_option(-1, 'timesteps', 32)
-    self.network_parser.add_option(-1, 'classes', classes)
-
-    # print(self.network_parser.section_list)
+    # print(self.text_parser.section_list)
 
     if self.app_name=='mnist_l1f':
       self.gen_fc_section(in_features=14*14, out_features=10, 
@@ -137,34 +135,45 @@ class NpxAppCfgGenerator():
   @property
   def dataset_name(self):
     return self.app_name.split('_')[0]
-      
-  @property
-  def num_layer(self):
-    return int(self.app_name.split('_')[1][1])
   
   @property
-  def app_cfg_path(self):
-    return app_cfg_dir_path / f'{self.app_name}.cfg'
+  def app_cfg_name(self):
+    return f'{self.app_name}.cfg'
 
   def gen_fc_section(self, in_features:int, out_features:int, 
                      input_type='spike', output_type='spike'):
-    self.network_parser.add_section('fc')
-    self.network_parser.add_option(-1, 'in_features', in_features)
-    self.network_parser.add_option(-1, 'out_features', out_features)
-    self.network_parser.add_option(-1, 'input_type', input_type)
-    self.network_parser.add_option(-1, 'output_type', output_type)
+    self.text_parser.add_section('fc')
+    self.text_parser.add_option(-1, 'in_features', in_features)
+    self.text_parser.add_option(-1, 'out_features', out_features)
+    self.text_parser.add_option(-1, 'input_type', input_type)
+    self.text_parser.add_option(-1, 'output_type', output_type)
 
   def gen_conv_section(self, in_channels:int, out_channels:int, 
                       kernel_size=3, stride=1, padding=0,
                       input_type='spike', output_type='spike'):
-    self.network_parser.add_section('conv')
-    self.network_parser.add_option(-1, 'in_channels', in_channels)
-    self.network_parser.add_option(-1, 'out_channels', out_channels)
-    self.network_parser.add_option(-1, 'kernel_size', kernel_size)
-    self.network_parser.add_option(-1, 'stride', stride)
-    self.network_parser.add_option(-1, 'padding', padding)
-    self.network_parser.add_option(-1, 'input_type', input_type)
-    self.network_parser.add_option(-1, 'output_type', output_type)
+    self.text_parser.add_section('conv')
+    self.text_parser.add_option(-1, 'in_channels', in_channels)
+    self.text_parser.add_option(-1, 'out_channels', out_channels)
+    self.text_parser.add_option(-1, 'kernel_size', kernel_size)
+    self.text_parser.add_option(-1, 'stride', stride)
+    self.text_parser.add_option(-1, 'padding', padding)
+    self.text_parser.add_option(-1, 'input_type', input_type)
+    self.text_parser.add_option(-1, 'output_type', output_type)
+  
+  def __str__(self) -> str:
+    assert self.text_parser
+    return str(self.text_parser)
+  
+  def __repr__(self) -> str:
+    assert self.text_parser
+    return repr(self.text_parser)
+  
+  def write_file(self, path:Path):
+    if path.is_dir():
+      app_cfg_path = path / self.app_cfg_name
+    else:
+      app_cfg_path = path
+    app_cfg_path.write_text(str(self))
 
 if __name__ == '__main__':
 
@@ -172,12 +181,12 @@ if __name__ == '__main__':
   parser.add_argument('-app', '-a', nargs='+', help='example app name', default=[])
   parser.add_argument('-neuron', '-n', nargs='+', help='types of neuron', default=['q8ssf'])
   parser.add_argument('-dataset', '-d', help='dataset directory')
-  parser.add_argument('-cfg', '-c', nargs='+', help='app cfg file name', default=[])
   parser.add_argument('-output', '-o', help='app cfg directory', default='./generated_cfg')
 
   # check args
   args = parser.parse_args()
   assert args.app
+  assert args.neuron
   assert args.dataset
   assert args.output
 
@@ -202,7 +211,8 @@ if __name__ == '__main__':
   #print(neuron_list)
   for app_name in exam_app_name_list:
     for train_neuron_str, test_neuron_str in neuron_list:
-      app_cfg_generator = NpxAppCfgGenerator(app_name=app_name, neuron_type_str=train_neuron_str,
-                                dataset_path=dataset_path, app_cfg_dir_path=app_cfg_dir_path)
-      app_cfg_generator.network_parser.print()
-      app_cfg_generator.network_parser.save()
+      app_cfg_generator = NpxAppCfgGenerator()
+      app_cfg_generator.generate_predifined_app(app_name=app_name, neuron_type_str=train_neuron_str,
+                                dataset_path=dataset_path)
+      print(app_cfg_generator)
+      app_cfg_generator.write_file(app_cfg_dir_path)

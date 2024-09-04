@@ -11,15 +11,15 @@ class NpxDefine:
     self.app_cfg_path = app_cfg_path
     self.output_path = output_path
 
-    network_parser = NpxTextParser(self.app_cfg_path)
-    network_parser.parsing()
-    network_parser.save()
+    text_parser = NpxTextParser()
+    text_parser.parse_file(self.app_cfg_path)
+    #text_parser.write_file(self.app_cfg_path)
     
     info_list = (
         ('dataset', 'mnist'),('timesteps', 32),('neuron_type', ''),('train_neuron_str', ''),('test_neuron_str', '')
         )
     for var_name, default_value in info_list:
-      value = NpxTextParser.find_option_value(network_parser.global_info, var_name, default_value)
+      value = NpxTextParser.find_option_value(text_parser.global_info, var_name, default_value)
       self.__dict__[var_name] = value
     
     if self.neuron_type:
@@ -66,8 +66,11 @@ class NpxDefine:
   def parameter_suffix():
     return '.pt'
     
-  def get_parameter_app_path(self):
+  def get_parameter_raw_cfg_path(self):
     return self.parameter_dir_path / self.app_cfg_path.name
+  
+  def get_parameter_epoch_cfg_path(self, epoch_index:int):
+    return self.parameter_dir_path / f'{self.app_cfg_path.stem}_e{epoch_index:03d}{self.app_cfg_path.suffix}'
   
   def get_parameter_path(self, repeat_index:int, epoch_index:int, is_quantized:bool):
     filename = self.get_parameter_filename_prefix(repeat_index)

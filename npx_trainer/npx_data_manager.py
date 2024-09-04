@@ -4,6 +4,8 @@ import torch
 from torch.utils.data.dataloader import DataLoader
 from torchvision import datasets, transforms
 
+from collections import Counter
+
 class NpxDataManager():
   def __init__(self, dataset_name:str, dataset_path:Path, num_kfold:int=None):
     self.name = dataset_name
@@ -103,3 +105,11 @@ class NpxDataManager():
   @property
   def test_loader(self):
     return self.loader_list[2]
+  
+  @property
+  def input_size(self):
+    return self.dataset_test[0][0].shape
+  
+  @property
+  def num_classes(self):
+    return len(dict(Counter(sample_tup[1] for sample_tup in self.dataset_test)))

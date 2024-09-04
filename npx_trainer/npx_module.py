@@ -45,19 +45,19 @@ class NpxModule(nn.Module):
     self.neuron_type = self.neuron_type_class(neuron_type_str) if neuron_type_str else None
     self.app_cfg_path = app_cfg_path
     if self.app_cfg_path and self.app_cfg_path.is_file():
-      self.network_parser = NpxTextParser(self.app_cfg_path)
-      self.network_parser.parsing()
+      self.text_parser = NpxTextParser()
+      self.text_parser.parse_file(self.app_cfg_path)
             
       info_list = (
         ('dataset', 'mnist'),('timesteps', 32)
         )
       for var_name, default_value in info_list:
-        value = NpxTextParser.find_option_value(self.network_parser.global_info, var_name, default_value)
+        value = NpxTextParser.find_option_value(self.text_parser.global_info, var_name, default_value)
         self.__dict__[var_name] = value
       
       self.layer_sequence = []
-      self.nlayer = len(self.network_parser.layer_info_list)
-      self.gen_layer_sequence(self.network_parser.layer_info_list)
+      self.nlayer = len(self.text_parser.layer_info_list)
+      self.gen_layer_sequence(self.text_parser.layer_info_list)
       # print(net_option, layer_option_list)
       
   @property
@@ -72,18 +72,26 @@ class NpxModule(nn.Module):
   def can_learn_neuron_threshold(self):
     return False
     #return True if self.neuron_type and self.neuron_type.is_infinite_potential else False
-    
-  def generate_cfg(self, cfg_path:Path):
-    write_cfg = True
+
+  def generate_cfg(self):
     current_contents = self.app_cfg_path.read_text()
+    return current_contents
+
+  def backup_epoch_cfg(self, cfg_path:Path):
+    assert not cfg_path.is_file(), cfg_path
+    contents = self.generate_cfg()
+    cfg_path.write_text(contents)
+  
+  def backup_raw_cfg(self, cfg_path:Path):
+    contents = self.app_cfg_path.read_text()
     if cfg_path.is_file():
       previous_contents = cfg_path.read_text()
-      if current_contents!=previous_contents:
-        print(f'[WARNING] {cfg_path} is overwritten due to mismatch')
-      else:
-        write_cfg = False
-    if write_cfg:
-      cfg_path.write_text(current_contents)
+      assert contents==previous_contents
+    cfg_path.write_text(contents)
+
+  def backup_cfg(self, npx_define:NpxDefine, epoch_index:int):
+    self.backup_raw_cfg(npx_define.get_parameter_raw_cfg_path())
+    self.backup_epoch_cfg(npx_define.get_parameter_epoch_cfg_path(epoch_index))
 
   def forward(self, x:Tensor):
     last_tensor = x
