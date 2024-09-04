@@ -43,7 +43,6 @@ class NpxModule(nn.Module):
   def __init__(self, app_cfg_path:Path, neuron_type_str:str='q8ssf', neuron_type_class=NpxNeuronType):
     super().__init__()
     self.neuron_type_class = neuron_type_class
-
     self.neuron_type = self.neuron_type_class(neuron_type_str) if neuron_type_str else None
     self.app_cfg_path = app_cfg_path
     if self.app_cfg_path and self.app_cfg_path.is_file():
@@ -60,6 +59,7 @@ class NpxModule(nn.Module):
       self.layer_sequence = []
       self.gen_layer_sequence(self.text_parser.layer_info_list)
       # print(net_option, layer_option_list)
+    self.is_quantized = False
       
   @property
   def app_name(self):
@@ -74,7 +74,7 @@ class NpxModule(nn.Module):
     return len(self.text_parser.layer_info_list)
 
   @property
-  def can_learn_neuron_threshold(self):
+  def can_neuron_learn_threshold(self):
     return False
     #return True if self.neuron_type and self.neuron_type.is_infinite_potential else False
 
@@ -112,19 +112,27 @@ class NpxModule(nn.Module):
       layer.weight.data = self.neuron_type.dequantize_tensor(qtensor)
     current = layer(x)
     if self.training and self.neuron_type:
-      if not self.neuron_type.is_signed_weight:
-        original_tensor = original_tensor.clamp(min=0)
       layer.weight.data = original_tensor
+      self.neuron_type.clamp_weight_(layer.weight.data, self.is_quantized)
     return current
+  
+  @staticmethod
+  def does_neuron_learn_threshold(neuron):
+    if type(neuron.threshold)==nn.Parameter:
+      learn_threshold = True
+    elif type(neuron.threshold)==Tensor:
+      learn_threshold = False
+    else:
+      assert 0
+    return learn_threshold
       
   def forward_neuron(self, i:int, neuron, x:Tensor):
-    if self.training and self.can_learn_neuron_threshold and neuron.learn_threshold:
+    if self.training and self.can_neuron_learn_threshold and self.does_neuron_learn_threshold(neuron):
       qtensor = self.neuron_type.quantize_tensor(neuron.threshold, bounded=False)
       neuron.threshold = type(neuron.threshold)(self.neuron_type.dequantize_tensor(qtensor))
     current = neuron(x)
     if self.neuron_type:
-      if not self.neuron_type.is_signed_potential:
-        neuron.mem = neuron.mem.clamp(min=0)
+      self.neuron_type.clamp_mem_(neuron.mem, self.is_quantized)
     return current
       
   def print_parameter(self):
@@ -135,6 +143,7 @@ class NpxModule(nn.Module):
   def quantize_network(self):
     assert not self.training
     assert self.neuron_type
+    self.is_quantized = True
     for layer, neuron in self.layer_sequence:
       qtensor = self.neuron_type.quantize_tensor(layer.weight.data, bounded=True)
       layer.weight.data = qtensor.tensor.float()
@@ -186,10 +195,10 @@ class NpxModule(nn.Module):
           self.layer_sequence.append((layer, neuron))
             
         else:
-          print('unsupported layer')
+          assert 0
             
       else:
-        print('It is not layer option')
+        assert 0
 
   def make_neuron(self, layer_option, neuron_output):
     beta = NpxTextParser.find_option_value(layer_option, 'beta', 1.0)

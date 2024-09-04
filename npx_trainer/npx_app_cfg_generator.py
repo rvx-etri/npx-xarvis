@@ -164,9 +164,10 @@ class NpxAppCfgGenerator():
     self.neuron_type = npx_module.neuron_type
     self.text_parser = copy.deepcopy(npx_module.text_parser)
     for i, (layer, neuron) in enumerate(npx_module.layer_sequence):
-      all_neuron_var_list = ('beta','reset_mechanism','threshold')
-      for neuron_var in all_neuron_var_list:
-        self.text_parser.add_option(i+1, neuron_var, getattr(neuron, neuron_var))
+      self.text_parser.add_option(i+1, 'beta', float(neuron.beta))
+      self.text_parser.add_option(i+1, 'reset_mechanism', neuron.reset_mechanism)
+      self.text_parser.add_option(i+1, 'threshold', float(neuron.threshold))
+      self.text_parser.add_option(i+1, 'learn_threshold', npx_module.does_neuron_learn_threshold(neuron))
 
   def __str__(self) -> str:
     assert self.text_parser

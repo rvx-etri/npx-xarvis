@@ -45,7 +45,7 @@ class NpxNeuronType():
   
   @property
   def qscale(self):
-    return (self.smax + 1) if self.is_signed_weight else (self.umax + 1)
+    return int(2.**(self.num_bits-1)) if self.is_signed_weight else int(2.**(self.num_bits))
   
   @property
   def qmax(self):
@@ -53,7 +53,7 @@ class NpxNeuronType():
 
   @property
   def qmin(self):
-    return self.smin if self.is_signed_weight else 0
+    return (self.smin+1) if self.is_signed_weight else 0
 
   def quantize_tensor(self, x:Tensor, bounded:bool):
     fval_max = 1.0
@@ -66,6 +66,15 @@ class NpxNeuronType():
       qx.clamp_(self.qmin, self.qmax)
     qx.round_()
     return QTensor(qx, scale, 0)
+  
+  def clamp_weight_(self, x:Tensor, is_quantized:bool):
+    if not self.is_signed_weight:
+      x.clamp_(min=0)
+  
+  def clamp_mem_(self, x:Tensor, is_quantized:bool):
+    if not self.is_signed_potential:
+      x.clamp_(min=0)
 
-  def dequantize_tensor(self, qx:QTensor):
+  @staticmethod
+  def dequantize_tensor(qx:QTensor):
     return qx.scale * (qx.tensor.float())
