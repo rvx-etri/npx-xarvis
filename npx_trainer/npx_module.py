@@ -17,6 +17,8 @@ from npx_define import *
 from npx_neuron_type import *
 from npx_text_parser import *
 
+import npx_app_cfg_generator
+
 class PotentialResult():
   def __init__(self, pacc:int=0, nacc:int=0, neuron_type:NpxNeuronType=None):
     self.neuron_type = neuron_type
@@ -53,34 +55,34 @@ class NpxModule(nn.Module):
         )
       for var_name, default_value in info_list:
         value = NpxTextParser.find_option_value(self.text_parser.global_info, var_name, default_value)
-        self.__dict__[var_name] = value
+        setattr(self, var_name, value)
       
       self.layer_sequence = []
-      self.nlayer = len(self.text_parser.layer_info_list)
       self.gen_layer_sequence(self.text_parser.layer_info_list)
       # print(net_option, layer_option_list)
       
+  @property
+  def app_name(self):
+    return self.app_cfg_path.stem
+  
   @property
   def dataset_name(self):
     return self.dataset
       
   @property
   def num_layer(self):
-    return self.nlayer
+    return len(self.text_parser.layer_info_list)
 
   @property
   def can_learn_neuron_threshold(self):
     return False
     #return True if self.neuron_type and self.neuron_type.is_infinite_potential else False
 
-  def generate_cfg(self):
-    current_contents = self.app_cfg_path.read_text()
-    return current_contents
-
-  def backup_epoch_cfg(self, cfg_path:Path):
-    assert not cfg_path.is_file(), cfg_path
-    contents = self.generate_cfg()
-    cfg_path.write_text(contents)
+  def backup_epoch_cfg(self, cfg_path:Path, overwrite:bool=False):
+    assert overwrite or (not cfg_path.is_file()), cfg_path
+    app_cfg_generator = npx_app_cfg_generator.NpxAppCfgGenerator()
+    app_cfg_generator.import_module(self)
+    app_cfg_generator.write_file(cfg_path)
   
   def backup_raw_cfg(self, cfg_path:Path):
     contents = self.app_cfg_path.read_text()
@@ -91,7 +93,7 @@ class NpxModule(nn.Module):
 
   def backup_cfg(self, npx_define:NpxDefine, epoch_index:int):
     self.backup_raw_cfg(npx_define.get_parameter_raw_cfg_path())
-    self.backup_epoch_cfg(npx_define.get_parameter_epoch_cfg_path(epoch_index))
+    self.backup_epoch_cfg(npx_define.get_parameter_epoch_cfg_path(epoch_index),True)
 
   def forward(self, x:Tensor):
     last_tensor = x
@@ -158,8 +160,8 @@ class NpxModule(nn.Module):
       if layer_option.get('section'):
         if layer_option['section'] == 'fc':
           # synapse option
-          in_features = int(NpxTextParser.find_option_value(layer_option, 'in_features', 1))
-          out_features = int(NpxTextParser.find_option_value(layer_option, 'out_features', 1))
+          in_features = NpxTextParser.find_option_value(layer_option, 'in_features', 1)
+          out_features = NpxTextParser.find_option_value(layer_option, 'out_features', 1)
           # print(in_features, out_features)
 
           layer = nn.Linear(in_features, out_features, bias=False)
@@ -170,11 +172,11 @@ class NpxModule(nn.Module):
           
         elif layer_option['section'] == 'conv':
           # synapse option
-          in_channels = int(NpxTextParser.find_option_value(layer_option, 'in_channels', 1))
-          out_channels = int(NpxTextParser.find_option_value(layer_option, 'out_channels', 1))
-          kernel_size = int(NpxTextParser.find_option_value(layer_option, 'kernel_size', 3))
-          stride = int(NpxTextParser.find_option_value(layer_option, 'stride', 1))
-          padding = int(NpxTextParser.find_option_value(layer_option, 'padding', 0))
+          in_channels = NpxTextParser.find_option_value(layer_option, 'in_channels', 1)
+          out_channels = NpxTextParser.find_option_value(layer_option, 'out_channels', 1)
+          kernel_size = NpxTextParser.find_option_value(layer_option, 'kernel_size', 3)
+          stride = NpxTextParser.find_option_value(layer_option, 'stride', 1)
+          padding = NpxTextParser.find_option_value(layer_option, 'padding', 0)
           # print(in_channels, out_channels, kernel_size, stride, padding)
 
           layer = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, bias=False)
@@ -192,7 +194,7 @@ class NpxModule(nn.Module):
   def make_neuron(self, layer_option, neuron_output):
     beta = NpxTextParser.find_option_value(layer_option, 'beta', 1.0)
     reset_mechanism = NpxTextParser.find_option_value(layer_option, 'reset_mechanism', 'zero')
-    threshold = float(NpxTextParser.find_option_value(layer_option, 'threshold', 1.0))
+    threshold = NpxTextParser.find_option_value(layer_option, 'threshold', 1.0)
     learn_threshold = NpxTextParser.find_option_value(layer_option, 'learn_threshold', False)
     neuron = snntorch.Leaky(beta=beta, threshold=threshold, init_hidden=True, 
                 reset_mechanism=reset_mechanism, learn_threshold=learn_threshold, output=neuron_output)

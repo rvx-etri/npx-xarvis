@@ -20,6 +20,7 @@ class NpxDefine:
         )
     for var_name, default_value in info_list:
       value = NpxTextParser.find_option_value(text_parser.global_info, var_name, default_value)
+      setattr(self, var_name, value)
       self.__dict__[var_name] = value
     
     if self.neuron_type:

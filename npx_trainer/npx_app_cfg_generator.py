@@ -19,7 +19,6 @@ class NpxAppCfgGenerator():
   def generate_predifined_app(self, app_name:str, neuron_type_str:str, dataset_path:Path):
     self.app_name = app_name
     self.neuron_type = NpxNeuronType(neuron_type_str) if neuron_type_str else None
-
     npx_data_manager = NpxDataManager(dataset_name=self.dataset_name, dataset_path=dataset_path, num_kfold=5)
 
     # print(self.app_cfg_path)
@@ -159,7 +158,16 @@ class NpxAppCfgGenerator():
     self.text_parser.add_option(-1, 'padding', padding)
     self.text_parser.add_option(-1, 'input_type', input_type)
     self.text_parser.add_option(-1, 'output_type', output_type)
-  
+
+  def import_module(self, npx_module):
+    self.app_name = npx_module.app_name
+    self.neuron_type = npx_module.neuron_type
+    self.text_parser = copy.deepcopy(npx_module.text_parser)
+    for i, (layer, neuron) in enumerate(npx_module.layer_sequence):
+      all_neuron_var_list = ('beta','reset_mechanism','threshold')
+      for neuron_var in all_neuron_var_list:
+        self.text_parser.add_option(i+1, neuron_var, getattr(neuron, neuron_var))
+
   def __str__(self) -> str:
     assert self.text_parser
     return str(self.text_parser)

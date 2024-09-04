@@ -29,6 +29,8 @@ class NpxTextParser():
     line_list = path.read_text().split('\n')
 
     for line in line_list:
+      if line=='':
+        continue
       if '[' in line and ']' in line:
         section_name = self.find_section_name(line)[0]
         current_option_list = OrderedDict([('section', section_name)])
