@@ -45,24 +45,21 @@ class NpxModule(nn.Module):
     self.neuron_type = self.neuron_type_class(neuron_type_str) if neuron_type_str else None
     self.app_cfg_path = app_cfg_path
     if self.app_cfg_path and self.app_cfg_path.is_file():
-      self.lif_threshold = 1.0
-      self.train_threshold = False
-      #self.reset_mechanism = 'zero'
-      self.reset_mechanism = 'subtract'
-      self.net_parser = NpxTextParser(self.app_cfg_path)
-      self.net_parser.parsing()
+      self.network_parser = NpxTextParser(self.app_cfg_path)
+      self.network_parser.parsing()
+            
+      info_list = (
+        ('dataset', 'mnist'),('timesteps', 32)
+        )
+      for var_name, default_value in info_list:
+        value = NpxTextParser.find_option_value(self.network_parser.global_info, var_name, default_value)
+        self.__dict__[var_name] = value
+      
       self.layer_sequence = []
-
-      net_option = self.net_parser.section_list[0]
-      layer_option_list = self.net_parser.section_list[1:]
-      self.dataset = self.net_parser.find_option_value(net_option, 'dataset', 'mnist')
-      self.timesteps = int(self.net_parser.find_option_value(net_option, 'timesteps', 32))
-      self.nlayer = len(layer_option_list)
-      self.gen_layer_sequence(layer_option_list)
+      self.nlayer = len(self.network_parser.layer_info_list)
+      self.gen_layer_sequence(self.network_parser.layer_info_list)
       # print(net_option, layer_option_list)
-
-      self.set_train_mode(self.train_threshold)
-
+      
   @property
   def dataset_name(self):
     return self.dataset
@@ -72,23 +69,21 @@ class NpxModule(nn.Module):
     return self.nlayer
 
   @property
-  def can_learn_threshold(self):
+  def can_learn_neuron_threshold(self):
     return False
     #return True if self.neuron_type and self.neuron_type.is_infinite_potential else False
-  
-  def set_train_mode(self, train_threshold:bool=False):
-    pass
-    '''
-    self.train_threshold = train_threshold
-    if self.can_learn_threshold:
-      for layer, neuron in self.layer_sequence:
-        if self.train_threshold:
-          layer.weight.requires_grad_(False)
-          neuron.threshold.requires_grad_(True)
-        else:
-          layer.weight.requires_grad_(True)
-          neuron.threshold.requires_grad_(False)
-    '''
+    
+  def generate_cfg(self, cfg_path:Path):
+    write_cfg = True
+    current_contents = self.app_cfg_path.read_text()
+    if cfg_path.is_file():
+      previous_contents = cfg_path.read_text()
+      if current_contents!=previous_contents:
+        print(f'[WARNING] {cfg_path} is overwritten due to mismatch')
+      else:
+        write_cfg = False
+    if write_cfg:
+      cfg_path.write_text(current_contents)
 
   def forward(self, x:Tensor):
     last_tensor = x
@@ -113,7 +108,7 @@ class NpxModule(nn.Module):
     return current
       
   def forward_neuron(self, i:int, neuron, x:Tensor):
-    if self.training and self.train_threshold and self.can_learn_threshold:
+    if self.training and self.can_learn_neuron_threshold and neuron.learn_threshold:
       qtensor = self.neuron_type.quantize_tensor(neuron.threshold, bounded=False)
       neuron.threshold = type(neuron.threshold)(self.neuron_type.dequantize_tensor(qtensor))
     current = neuron(x)
@@ -155,8 +150,8 @@ class NpxModule(nn.Module):
       if layer_option.get('section'):
         if layer_option['section'] == 'fc':
           # synapse option
-          in_features = int(self.net_parser.find_option_value(layer_option, 'in_features', 1))
-          out_features = int(self.net_parser.find_option_value(layer_option, 'out_features', 1))
+          in_features = int(NpxTextParser.find_option_value(layer_option, 'in_features', 1))
+          out_features = int(NpxTextParser.find_option_value(layer_option, 'out_features', 1))
           # print(in_features, out_features)
 
           layer = nn.Linear(in_features, out_features, bias=False)
@@ -167,11 +162,11 @@ class NpxModule(nn.Module):
           
         elif layer_option['section'] == 'conv':
           # synapse option
-          in_channels = int(self.net_parser.find_option_value(layer_option, 'in_channels', 1))
-          out_channels = int(self.net_parser.find_option_value(layer_option, 'out_channels', 1))
-          kernel_size = int(self.net_parser.find_option_value(layer_option, 'kernel_size', 3))
-          stride = int(self.net_parser.find_option_value(layer_option, 'stride', 1))
-          padding = int(self.net_parser.find_option_value(layer_option, 'padding', 0))
+          in_channels = int(NpxTextParser.find_option_value(layer_option, 'in_channels', 1))
+          out_channels = int(NpxTextParser.find_option_value(layer_option, 'out_channels', 1))
+          kernel_size = int(NpxTextParser.find_option_value(layer_option, 'kernel_size', 3))
+          stride = int(NpxTextParser.find_option_value(layer_option, 'stride', 1))
+          padding = int(NpxTextParser.find_option_value(layer_option, 'padding', 0))
           # print(in_channels, out_channels, kernel_size, stride, padding)
 
           layer = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, bias=False)
@@ -187,10 +182,10 @@ class NpxModule(nn.Module):
         print('It is not layer option')
 
   def make_neuron(self, layer_option, neuron_output):
-    beta = float(self.net_parser.find_option_value(layer_option, 'beta', 1))
-    reset_mechanism = self.net_parser.find_option_value(layer_option, 'reset_mechanism', 'subtract')
-    # threshold = float(self.net_parser.find_option_value(layer_option, 'threshold', 1.0))
-    # learn_threshold = self.net_parser.find_option_value(layer_option, 'learn_threshold', False)
-    neuron = snntorch.Leaky(beta=beta, threshold=self.lif_threshold, init_hidden=True, 
-                reset_mechanism=reset_mechanism, learn_threshold=self.train_threshold, output=neuron_output)
+    beta = NpxTextParser.find_option_value(layer_option, 'beta', 1.0)
+    reset_mechanism = NpxTextParser.find_option_value(layer_option, 'reset_mechanism', 'zero')
+    threshold = float(NpxTextParser.find_option_value(layer_option, 'threshold', 1.0))
+    learn_threshold = NpxTextParser.find_option_value(layer_option, 'learn_threshold', False)
+    neuron = snntorch.Leaky(beta=beta, threshold=threshold, init_hidden=True, 
+                reset_mechanism=reset_mechanism, learn_threshold=learn_threshold, output=neuron_output)
     return neuron

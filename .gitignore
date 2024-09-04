@@ -61,5 +61,3 @@ rvx_python_config.mh
 .rvx_*
 
 dataset
-npx_trainer/result
-npx_trainer/generated_cfg

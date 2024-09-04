@@ -41,6 +41,7 @@ class NpxTrainer():
     if previous_epoch_index>=0:
       npx_module.load_state_dict(torch.load(previous_history_file))
       print(f'Start from \"{previous_history_file.name}\"')
+    npx_module.generate_cfg(npx_define.get_parameter_app_path())
 
     for epoch_index in range(start_epoch_index, num_epochs):
       self.train_once(npx_module=npx_module, npx_data_manager=npx_data_manager, epoch_index=epoch_index)

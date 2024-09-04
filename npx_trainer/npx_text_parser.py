@@ -13,6 +13,14 @@ class NpxTextParser():
     self.path = path
     self.find_section_name = re.compile('\[([^]]+)\]').findall
     self.section_list = []
+    
+  @property
+  def global_info(self):
+    return self.section_list[0]
+  
+  @property
+  def layer_info_list(self):
+    return self.section_list[1:]
 
   def get_option(self, line:str):
     strings = line.strip().split('=')
@@ -38,11 +46,23 @@ class NpxTextParser():
       print(f'{self.path} file is not exist!')
       assert 0, self.path
 
-  def find_option_value(self, option_list:OrderedDict, key:str, default:str):
+  @staticmethod
+  def find_option_value(option_list:OrderedDict, key:str, default_value):
     if option_list.get(key):
-      return option_list[key]
+      assert default_value!=None, key
+      value = option_list[key]
+      if type(default_value)==type(True):
+        if value=='True':
+          value = True
+        elif value=='False':
+          value = False
+        else:
+          assert 0, value
+      else:
+        value = type(default_value)(value)
     else:
-      return default
+      value = default_value
+    return value
 
   def save(self):
     # print('save', self.path)
@@ -68,7 +88,7 @@ class NpxTextParser():
 
   def add_option(self, section_id:int, key:str, value:str):
     if (section_id < len(self.section_list)) & (section_id >= -len(self.section_list)):
-      self.section_list[section_id].update({key: value})
+      self.section_list[section_id].update({key: str(value)})
     else: 
       print(f'section_id: {section_id} is out of i range for section list. ( < {len(self.section_list)}])')
       assert 0, section_id

@@ -11,16 +11,24 @@ class NpxDefine:
     self.app_cfg_path = app_cfg_path
     self.output_path = output_path
 
-    net_parser = NpxTextParser(self.app_cfg_path)
-    net_parser.parsing()
-    net_parser.save()
-    # print(net_parser.section_list)
-    net_option = net_parser.section_list[0]
-    self.dataset = net_parser.find_option_value(net_option, 'dataset', 'mnist')
-
-    self.train_neuron_str = net_parser.find_option_value(net_option, 'neuron_type', 'q8ssf')
-    self.test_neuron_str = self.train_neuron_str
-    self.timesteps = int(net_parser.find_option_value(net_option, 'timesteps', 32))
+    network_parser = NpxTextParser(self.app_cfg_path)
+    network_parser.parsing()
+    network_parser.save()
+    
+    info_list = (
+        ('dataset', 'mnist'),('timesteps', 32),('neuron_type', ''),('train_neuron_str', ''),('test_neuron_str', '')
+        )
+    for var_name, default_value in info_list:
+      value = NpxTextParser.find_option_value(network_parser.global_info, var_name, default_value)
+      self.__dict__[var_name] = value
+    
+    if self.neuron_type:
+      self.train_neuron_str = self.neuron_type
+      self.test_neuron_str = self.neuron_type
+    else:
+      assert self.train_neuron_str
+      if not self.test_neuron_str:
+        self.test_neuron_str = self.train_neuron_str
 
   @staticmethod
   def print_test_result(result:TestResult):
@@ -58,6 +66,9 @@ class NpxDefine:
   def parameter_suffix():
     return '.pt'
     
+  def get_parameter_app_path(self):
+    return self.parameter_dir_path / self.app_cfg_path.name
+  
   def get_parameter_path(self, repeat_index:int, epoch_index:int, is_quantized:bool):
     filename = self.get_parameter_filename_prefix(repeat_index)
     filename += f'_e{epoch_index:03d}'
