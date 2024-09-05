@@ -2,7 +2,7 @@ from collections import namedtuple
 
 from torch import Tensor
 
-QTensor = namedtuple('QTensor', ['tensor', 'scale', 'zero_point'])
+QTensor = namedtuple('QTensor', ['tensor', 'dqfactor', 'zero_point'])
 
 class NpxNeuronType():
   def __init__(self, type_by_str:str=None):
@@ -10,18 +10,28 @@ class NpxNeuronType():
     assert type_by_str[0]=='q', type_by_str
     
     self.num_bits = int(type_by_str[1])
-    if type_by_str[2]=='s':
+    default_type = 'ssf'
+    type_by_str_extended = type_by_str + default_type[len(type_by_str)-2:]
+    if type_by_str_extended[2]=='s':
       self.is_signed_weight = True
-    elif type_by_str[2]=='u':
+    elif type_by_str_extended[2]=='u':
       self.is_signed_weight = False
     else:
       assert 0
-    if type_by_str[3]=='s':
+    if type_by_str_extended[3]=='s':
       self.is_signed_potential = True
-    elif type_by_str[3]=='u':
+    elif type_by_str_extended[3]=='u':
       self.is_signed_potential = False
     else:
       assert 0
+    if type_by_str_extended[4]=='i':
+      self.is_infinite_potential = True
+    elif type_by_str_extended[4]=='f':
+      self.is_infinite_potential = False
+    else:
+      assert 0
+    
+    self.ftarget = 1.0
             
     def __repr__(self):
       result = (self.num_bits, self.is_signed_weight, self.is_signed_potential, self.is_infinite_potential)
@@ -54,18 +64,30 @@ class NpxNeuronType():
   @property
   def qmin(self):
     return (self.smin+1) if self.is_signed_weight else 0
+  
+  @property
+  def qfactor(self):
+    return float(self.qscale)/self.ftarget
+  
+  @property
+  def qfactor(self):
+    return float(self.qscale)/self.ftarget
+  
+  @property
+  def dqfactor(self):
+    return self.ftarget / self.qscale
+  
+  def update_ftarget(self, x:Tensor):
+    self.ftarget = x.abs().max()
 
   def quantize_tensor(self, x:Tensor, bounded:bool):
-    fval_max = 1.0
-
-    scale = fval_max / self.qscale
-    
-    qx = x*self.qscale/fval_max # x/scale
-
+    if self.is_infinite_potential:
+      self.update_ftarget(x)
+    qx = x*self.qfactor
     if bounded:
       qx.clamp_(self.qmin, self.qmax)
     qx.round_()
-    return QTensor(qx, scale, 0)
+    return QTensor(qx, self.dqfactor, 0)
   
   def clamp_weight_(self, x:Tensor, is_quantized:bool):
     if not self.is_signed_weight:
@@ -77,4 +99,4 @@ class NpxNeuronType():
 
   @staticmethod
   def dequantize_tensor(qx:QTensor):
-    return qx.scale * (qx.tensor.float())
+    return qx.tensor.float()*qx.dqfactor

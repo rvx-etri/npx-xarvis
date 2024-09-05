@@ -75,8 +75,7 @@ class NpxModule(nn.Module):
 
   @property
   def can_neuron_learn_threshold(self):
-    return False
-    #return True if self.neuron_type and self.neuron_type.is_infinite_potential else False
+    return True if (self.neuron_type and self.neuron_type.is_infinite_potential) else False
 
   def backup_epoch_cfg(self, cfg_path:Path, overwrite:bool=False):
     assert overwrite or (not cfg_path.is_file()), cfg_path
@@ -147,8 +146,8 @@ class NpxModule(nn.Module):
     for layer, neuron in self.layer_sequence:
       qtensor = self.neuron_type.quantize_tensor(layer.weight.data, bounded=True)
       layer.weight.data = qtensor.tensor.float()
-      quantized_threshold = (neuron.threshold / qtensor.scale).round()
-      neuron.threshold = type(neuron.threshold)(quantized_threshold)
+      qtensor = self.neuron_type.quantize_tensor(neuron.threshold, bounded=False)
+      neuron.threshold = qtensor.tensor.float()
 
   def write_parameter(self, path:Path):
     assert path.parent.is_dir(), path

@@ -17,7 +17,7 @@ class NpxAppCfgGenerator():
     pass
 
   def generate_predifined_app(self, app_name:str, neuron_type_str:str, dataset_path:Path):
-    self.app_name = app_name
+    self.app_name = f'{app_name}_{neuron_type_str}'
     self.neuron_type = NpxNeuronType(neuron_type_str) if neuron_type_str else None
     npx_data_manager = NpxDataManager(dataset_name=self.dataset_name, dataset_path=dataset_path, num_kfold=5)
 
@@ -34,24 +34,24 @@ class NpxAppCfgGenerator():
 
     # print(self.text_parser.section_list)
 
-    if self.app_name=='mnist_l1f':
+    if self.app_name.startswith('mnist_l1f'):
       self.gen_fc_section(in_features=14*14, out_features=10, 
                      input_type='value', output_type='value')
 
-    elif self.app_name=='mnist_l2cf': # 256x64
+    elif self.app_name.startswith('mnist_l2cf'): # 256x64
       filter_size = 5
       self.gen_conv_section(in_channels=1, out_channels=2, kernel_size=filter_size,
                       input_type='value', output_type='spike')
       self.gen_fc_section(in_features=10*10*2, out_features=10, 
                      input_type='spike', output_type='value')
 
-    elif self.app_name=='mnist_l2ff': # 256x64
+    elif self.app_name.startswith('mnist_l2ff'): # 256x64
       self.gen_fc_section(in_features=14*14, out_features=256, 
                      input_type='value', output_type='spike')
       self.gen_fc_section(in_features=256, out_features=10, 
                      input_type='spike', output_type='value')
 
-    elif self.app_name=='mnist_l3fff': # 256x64
+    elif self.app_name.startswith('mnist_l3fff'): # 256x64
       self.gen_fc_section(in_features=14*14, out_features=256, 
                      input_type='value', output_type='spike')
       self.gen_fc_section(in_features=256, out_features=256, 
@@ -59,7 +59,7 @@ class NpxAppCfgGenerator():
       self.gen_fc_section(in_features=256, out_features=10, 
                      input_type='spike', output_type='value')
 
-    elif self.app_name=='mnist_l3cff': # 256x64
+    elif self.app_name.startswith('mnist_l3cff'): # 256x64
       filter_size = 5
       self.gen_conv_section(in_channels=1, out_channels=2, kernel_size=filter_size,
                       input_type='value', output_type='spike')
@@ -68,7 +68,7 @@ class NpxAppCfgGenerator():
       self.gen_fc_section(in_features=256, out_features=10, 
                      input_type='spike', output_type='value')
 
-    elif self.app_name=='mnist_l3ccf': # 256x64
+    elif self.app_name.startswith('mnist_l3ccf'): # 256x64
       filter_size = 5
       self.gen_conv_section(in_channels=1, out_channels=2, kernel_size=filter_size,
                       input_type='value', output_type='spike')
@@ -77,14 +77,14 @@ class NpxAppCfgGenerator():
       self.gen_fc_section(in_features=6*6*7, out_features=10, 
                      input_type='spike', output_type='value')
 
-    elif self.app_name=='fmnist_l2cf':
+    elif self.app_name.startswith('fmnist_l2cf'):
       filter_size = 5
       self.gen_conv_section(in_channels=1, out_channels=2, kernel_size=filter_size,
                       input_type='value', output_type='spike')
       self.gen_fc_section(in_features=10*10*2, out_features=10, 
                      input_type='spike', output_type='value')
 
-    elif self.app_name=='fmnist_l3cff':
+    elif self.app_name.startswith('fmnist_l3cff'):
       filter_size = 5
       self.gen_conv_section(in_channels=1, out_channels=2, kernel_size=filter_size,
                       input_type='value', output_type='spike')
@@ -93,7 +93,7 @@ class NpxAppCfgGenerator():
       self.gen_fc_section(in_features=256, out_features=10, 
                      input_type='spike', output_type='value')
 
-    elif self.app_name=='fmnist_l3ccf':
+    elif self.app_name.startswith('fmnist_l3ccf'):
       filter_size = 5
       self.gen_conv_section(in_channels=1, out_channels=2, kernel_size=filter_size,
                       input_type='value', output_type='spike')
@@ -102,7 +102,7 @@ class NpxAppCfgGenerator():
       self.gen_fc_section(in_features=6*6*7, out_features=10, 
                      input_type='spike', output_type='value')
 
-    elif self.app_name=='cifar10_l5cccff': 
+    elif self.app_name.startswith('cifar10_l5cccff'): 
       filter_size = 3
       self.gen_conv_section(in_channels=3, out_channels=8, kernel_size=filter_size,
                       input_type='value', output_type='spike')
@@ -115,7 +115,7 @@ class NpxAppCfgGenerator():
       self.gen_fc_section(in_features=256, out_features=10, 
                      input_type='spike', output_type='value')
 
-    elif self.app_name=='gtsrb_l5cccff': 
+    elif self.app_name.startswith('gtsrb_l5cccff'): 
       filter_size = 5
       self.gen_conv_section(in_channels=3, out_channels=10, kernel_size=filter_size,
                       input_type='value', output_type='spike')

@@ -190,8 +190,8 @@ if __name__ == '__main__':
     npx_define = NpxDefine(app_cfg_path=app_cfg_path, output_path=output_path)
     npx_data_manager = NpxDataManager(dataset_name=npx_define.dataset_name, dataset_path=dataset_path, num_kfold=num_kfold)
     if 'reset' in cmd_list:
-      if npx_define.parameter_dir_path.is_dir():
-        shutil.rmtree(npx_define.parameter_dir_path)
+      if npx_define.app_dir_path.is_dir():
+        shutil.rmtree(npx_define.app_dir_path)
     if 'train' in cmd_list:
       for repeat_index in range(num_repeat):
         npx_trainer.train(npx_define=npx_define, npx_data_manager=npx_data_manager, repeat_index=repeat_index, num_epochs=num_epochs)

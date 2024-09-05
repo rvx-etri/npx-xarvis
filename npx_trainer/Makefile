@@ -11,34 +11,54 @@ NUM_EPOCH=10
 NUM_REPEAT=5
 NUM_SAMPLE=3
 
+#########
+## RAW ##
+#########
+
 train:
 	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(CFG_FILE) -cmd train quantize test -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR}
 
-riscv: train
-	@${PYTHON3_CMD} ./npx_converter.py -cfg $(CFG_FILE) -o ${RESULT_DIR}
+test:
+	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(CFG_FILE) -cmd quantize test -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR}
 
 reset:
 	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(CFG_FILE) -cmd reset -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR}
+	
+riscv: train
+	@${PYTHON3_CMD} ./npx_converter.py -cfg $(CFG_FILE) -o ${RESULT_DIR}
 
 tv: riscv
-	@make riscv CFG_FILE=$(CFG_FILE)
 	@${PYTHON3_CMD} ./npx_testvector.py -cfg $(CFG_FILE) -cmd testvector -dataset ${DATASET_DIR} -s ${NUM_SAMPLE} -o ${RESULT_DIR}
+
+#########
+## APP ##
+#########
 
 APP_CFG_DIR=${CURDIR}/app
 APP_CFG_LIST=$(wildcard ${APP_CFG_DIR}/*.cfg)
 APP_CFG_NAME_LIST=$(basename $(notdir ${APP_CFG_LIST}))
 
+app_list:
+	@echo ${APP_CFG_NAME_LIST}
+
 $(addsuffix .train, ${APP_CFG_NAME_LIST}):%.train:
 	@make train CFG_FILE=${APP_CFG_DIR}/$(*).cfg
 
-$(addsuffix .riscv, ${APP_CFG_NAME_LIST}):%.riscv:
-	@make riscv CFG_FILE=${APP_CFG_DIR}/$(*).cfg
+$(addsuffix .test, ${APP_CFG_NAME_LIST}):%.test:
+	@make test CFG_FILE=${APP_CFG_DIR}/$(*).cfg
 
 $(addsuffix .reset, ${APP_CFG_NAME_LIST}):%.reset:
 	@make reset CFG_FILE=${APP_CFG_DIR}/$(*).cfg
 
+$(addsuffix .riscv, ${APP_CFG_NAME_LIST}):%.riscv:
+	@make riscv CFG_FILE=${APP_CFG_DIR}/$(*).cfg
+
 $(addsuffix .tv, ${APP_CFG_NAME_LIST}):%.tv:
 	@make tv CFG_FILE=${APP_CFG_DIR}/$(*).cfg
+
+##########
+## TEST ##
+##########
 
 TEST_APP_CFG_FILE=${APP_CFG_DIR}/mnist_app.cfg
 
@@ -51,14 +71,27 @@ check2:
 check3:
 	@make tv CFG_FILE=${TEST_APP_CFG_FILE} NUM_EPOCH=3 NUM_REPEAT=2 NUM_SAMPLE=${NUM_SAMPLE}
 
-APP_NAME_LIST=mnist_l2cf mnist_l2ff mnist_l3ccf mnist_l3fff mnist_l3cff mnist_l1f cifar10_l5cccff gtsrb_l5cccff
+####################
+## PREDEFINED APP ##
+####################
+
+PREDEFINED_APP_PREFIX_LIST=mnist_l2cf mnist_l2ff mnist_l3ccf mnist_l3fff mnist_l3cff mnist_l1f cifar10_l5cccff gtsrb_l5cccff
 NEURON_TYPE_LIST=q8ssf
 
-$(addsuffix .gen_cfg, ${APP_NAME_LIST}):%.gen_cfg:
+gen_info:
+	@echo ${PREDEFINED_APP_PREFIX_LIST}
+	@echo ${NEURON_TYPE_LIST}
+
+$(addsuffix .gen_cfg, ${PREDEFINED_APP_PREFIX_LIST}):%.gen_cfg:
 	@${PYTHON3_CMD} ./npx_app_cfg_generator.py -app $(*) -neuron ${NEURON_TYPE_LIST} -dataset ${DATASET_DIR} -o ${APP_CFG_DIR}
 
-GENERATED_CFG_DIR=generated_cfg
+$(addsuffix _q8ssf.reall, ${PREDEFINED_APP_PREFIX_LIST}):%_q8ssf.reall:
+	@make $(*).gen_cfg NEURON_TYPE_LIST=q8ssf
+	@make $(*)_q8ssf.reset
+	@make $(*)_q8ssf.train
 
-$(addsuffix .check_cfg, ${APP_NAME_LIST}):%.check_cfg:
-	@make $(*).gen_cfg APP_CFG_DIR=${GENERATED_CFG_DIR}
-	@make $(*).riscv APP_CFG_DIR=${GENERATED_CFG_DIR}
+################
+## FORWARDING ##
+################
+
+$(addsuffix .reall, ${PREDEFINED_APP_PREFIX_LIST}):%.reall: %_q8ssf.reall
