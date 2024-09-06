@@ -16,7 +16,7 @@ class NpxNeuronType():
       non_decimal_index += 1
       
     bit_str = type_by_str[1:non_decimal_index]
-    feature_str = type_by_str[non_decimal_index]
+    feature_str = type_by_str[non_decimal_index:]
     
     self.num_bits = int(bit_str)
     default_feature_str = 'ssf'
@@ -40,11 +40,11 @@ class NpxNeuronType():
     else:
       assert 0
     
-    self.ftarget = 1.0
+    self.mapped_fvalue = 1.0
             
-    def __repr__(self):
-      result = (self.num_bits, self.is_signed_weight, self.is_signed_potential, self.is_infinite_potential)
-      return str(result)
+  def __repr__(self):
+    result = (self.num_bits, self.is_signed_weight, self.is_signed_potential, self.is_infinite_potential)
+    return str(result)
           
   @property
   def umax(self):
@@ -76,26 +76,24 @@ class NpxNeuronType():
   
   @property
   def qfactor(self):
-    return float(self.qscale)/self.ftarget
+    return float(self.qscale)/self.mapped_fvalue
   
   @property
   def qfactor(self):
-    return float(self.qscale)/self.ftarget
+    return float(self.qscale)/self.mapped_fvalue
   
   @property
   def dqfactor(self):
-    return self.ftarget / self.qscale
+    return self.mapped_fvalue / self.qscale
   
-  @property
   def can_learn_threshold(self):
     return False
   
   def update_ftarget(self, x:Tensor):
-    self.ftarget = x.abs().max()
+    pass
 
   def quantize_tensor(self, x:Tensor, bounded:bool):
-    if self.can_learn_threshold:
-      self.update_ftarget(x)
+    self.update_ftarget(x)
     qx = x*self.qfactor
     if bounded:
       qx.clamp_(self.qmin, self.qmax)

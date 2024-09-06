@@ -55,6 +55,7 @@ class NpxModule(nn.Module):
       for var_name, default_value in info_list:
         value = NpxTextParser.find_option_value(self.text_parser.global_info, var_name, default_value)
         setattr(self, var_name, value)
+      self.neuron_type.mapped_fvalue = NpxTextParser.find_option_value(self.text_parser.global_info, 'mapped_fvalue', self.neuron_type.mapped_fvalue)
       
       self.layer_sequence = []
       self.gen_layer_sequence(self.text_parser.layer_info_list)
@@ -74,8 +75,8 @@ class NpxModule(nn.Module):
     return len(self.text_parser.layer_info_list)
 
   @property
-  def can_neuron_learn_threshold(self):
-    return True if (self.neuron_type and self.neuron_type.can_learn_threshold) else False
+  def can_learn_neural_threshold(self):
+    return True if (self.neuron_type and self.neuron_type.can_learn_threshold()) else False
 
   def backup_epoch_cfg(self, cfg_path:Path, overwrite:bool=False):
     assert overwrite or (not cfg_path.is_file()), cfg_path
@@ -126,9 +127,7 @@ class NpxModule(nn.Module):
     return learn_threshold
       
   def forward_neuron(self, i:int, neuron, x:Tensor):
-    if self.training and self.can_neuron_learn_threshold and self.does_neuron_learn_threshold(neuron):
-      qtensor = self.neuron_type.quantize_tensor(neuron.threshold, bounded=False)
-      neuron.threshold = type(neuron.threshold)(self.neuron_type.dequantize_tensor(qtensor))
+    #if self.training and self.can_learn_neural_threshold and self.does_neuron_learn_threshold(neuron):
     current = neuron(x)
     if self.neuron_type:
       self.neuron_type.clamp_mem_(neuron.mem, self.is_quantized)
@@ -203,7 +202,7 @@ class NpxModule(nn.Module):
     beta = NpxTextParser.find_option_value(layer_option, 'beta', 1.0)
     reset_mechanism = NpxTextParser.find_option_value(layer_option, 'reset_mechanism', 'zero')
     threshold = NpxTextParser.find_option_value(layer_option, 'threshold', 1.0)
-    if self.can_neuron_learn_threshold:
+    if self.can_learn_neural_threshold:
       learn_threshold = NpxTextParser.find_option_value(layer_option, 'learn_threshold', False)
     else:
       learn_threshold = False

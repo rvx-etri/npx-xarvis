@@ -163,6 +163,7 @@ class NpxAppCfgGenerator():
     self.app_name = npx_module.app_name
     self.neuron_type = npx_module.neuron_type
     self.text_parser = copy.deepcopy(npx_module.text_parser)
+    self.text_parser.add_option(0, 'mapped_fvalue', self.neuron_type.mapped_fvalue)
     for i, (layer, neuron) in enumerate(npx_module.layer_sequence):
       self.text_parser.add_option(i+1, 'beta', float(neuron.beta))
       self.text_parser.add_option(i+1, 'reset_mechanism', neuron.reset_mechanism)

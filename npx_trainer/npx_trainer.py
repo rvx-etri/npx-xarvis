@@ -132,7 +132,6 @@ class NpxTrainer():
   def test(self, npx_define:NpxDefine, repeat_index:int, npx_data_manager:NpxDataManager):
     npx_define.report_dir_path.mkdir(parents=True, exist_ok=True)
     print('\n[TEST]', npx_define.app_name, npx_define.test_neuron_str, repeat_index)
-    self.quantize(npx_define=npx_define, repeat_index=repeat_index)
 
     report_path = npx_define.get_report_path(repeat_index)
     if report_path.is_file():
