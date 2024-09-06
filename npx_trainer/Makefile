@@ -7,11 +7,13 @@ DATASET_DIR=${GIT_BASE}/dataset
 VERIFY_DIR=${GIT_BASE}/verify
 RESULT_DIR=${CURDIR}/result
 
+ifndef GPU_ID
+	GPU_ID=-1
+endif
+
 NUM_EPOCH=10
 NUM_REPEAT=5
 NUM_SAMPLE=3
-
-GPU_ID=-1
 
 #########
 ## RAW ##
