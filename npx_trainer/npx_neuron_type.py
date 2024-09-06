@@ -41,6 +41,10 @@ class NpxNeuronType():
       assert 0
     
     self.mapped_fvalue = 1.0
+    
+  def update_mapped_fvalue(self, fvalue):
+    if self.is_infinite_potential:
+      self.mapped_fvalue = fvalue
             
   def __repr__(self):
     result = (self.num_bits, self.is_signed_weight, self.is_signed_potential, self.is_infinite_potential)

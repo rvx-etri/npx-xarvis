@@ -55,7 +55,7 @@ class NpxModule(nn.Module):
       for var_name, default_value in info_list:
         value = NpxTextParser.find_option_value(self.text_parser.global_info, var_name, default_value)
         setattr(self, var_name, value)
-      self.neuron_type.mapped_fvalue = NpxTextParser.find_option_value(self.text_parser.global_info, 'mapped_fvalue', self.neuron_type.mapped_fvalue)
+      self.neuron_type.update_mapped_fvalue(NpxTextParser.find_option_value(self.text_parser.global_info, 'mapped_fvalue', self.neuron_type.mapped_fvalue))
       
       self.layer_sequence = []
       self.gen_layer_sequence(self.text_parser.layer_info_list)
