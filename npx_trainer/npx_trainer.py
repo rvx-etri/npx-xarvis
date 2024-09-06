@@ -11,9 +11,14 @@ from npx_data_manager import *
 from npx_module import *
 
 class NpxTrainer():
-  def __init__(self, module_class=NpxModule, use_cuda:bool=None):
-    self.use_cuda = (use_cuda!=None) and torch.cuda.is_available()
-    self.device = torch.device("cuda" if self.use_cuda else "cpu")
+  def __init__(self, module_class=NpxModule, gpu_id:str='-1'):
+    print(gpu_id)
+    if gpu_id=='-1' or (not torch.cuda.is_available()):
+      device_option = 'cpu'
+    else:
+      device_option = f'cuda:{gpu_id}'
+    self.device = torch.device(device_option)
+        
     #self.num_steps_to_train = 32
     self.loss_function = SF.ce_rate_loss()
     self.log_interval = 100
@@ -75,9 +80,10 @@ class NpxTrainer():
     total = 0
     acc = 0
     total_time = 0
-    torch.save(npx_module.state_dict(), "tmp.pth")
-    model_size = os.path.getsize("tmp.pth") / 1e6
-    os.remove("tmp.pth")
+    model_size = 0
+    #torch.save(npx_module.state_dict(), "tmp.pth")
+    #model_size = os.path.getsize("tmp.pth") / 1e6
+    #os.remove("tmp.pth")
     with torch.no_grad():
       for data, target in tqdm(data_loader):
         data, target = data.to(self.device), target.to(self.device)
@@ -165,6 +171,7 @@ if __name__ == '__main__':
   parser.add_argument('-dataset', '-d', help='dataset directory')
   parser.add_argument('-output', '-o', help='output directory')
   parser.add_argument('-cfg_dir', '-p', help='app cfg directory')
+  parser.add_argument('-gpu', '-g', default='-1', type=str, help='gpu id or -1 for cpu')
 
   # check args
   args = parser.parse_args()
@@ -172,6 +179,7 @@ if __name__ == '__main__':
   assert args.cmd
   assert args.epoch
   assert args.output
+  assert args.gpu
 
   app_cfg_list = args.cfg
   cmd_list = args.cmd
@@ -186,7 +194,7 @@ if __name__ == '__main__':
 
   # common env
   torch.manual_seed(1)
-  npx_trainer = NpxTrainer()
+  npx_trainer = NpxTrainer(gpu_id=args.gpu)
 
   # cfg
   for app_cfg in app_cfg_list:

@@ -11,18 +11,20 @@ NUM_EPOCH=10
 NUM_REPEAT=5
 NUM_SAMPLE=3
 
+GPU_ID=-1
+
 #########
 ## RAW ##
 #########
 
 train:
-	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(CFG_FILE) -cmd train quantize test -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR}
+	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(CFG_FILE) -cmd train quantize test -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR} -gpu ${GPU_ID}
 
 test:
-	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(CFG_FILE) -cmd quantize test -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR}
+	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(CFG_FILE) -cmd quantize test -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR} -gpu ${GPU_ID}
 
 reset:
-	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(CFG_FILE) -cmd reset -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR}
+	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(CFG_FILE) -cmd reset -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR} -gpu ${GPU_ID}
 	
 riscv: train
 	@${PYTHON3_CMD} ./npx_converter.py -cfg $(CFG_FILE) -o ${RESULT_DIR}
