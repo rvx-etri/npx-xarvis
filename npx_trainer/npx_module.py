@@ -75,7 +75,7 @@ class NpxModule(nn.Module):
 
   @property
   def can_neuron_learn_threshold(self):
-    return True if (self.neuron_type and self.neuron_type.is_infinite_potential) else False
+    return True if (self.neuron_type and self.neuron_type.can_learn_threshold) else False
 
   def backup_epoch_cfg(self, cfg_path:Path, overwrite:bool=False):
     assert overwrite or (not cfg_path.is_file()), cfg_path

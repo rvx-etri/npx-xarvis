@@ -9,24 +9,33 @@ class NpxNeuronType():
     assert type_by_str!=None, type_by_str
     assert type_by_str[0]=='q', type_by_str
     
-    self.num_bits = int(type_by_str[1])
-    default_type = 'ssf'
-    type_by_str_extended = type_by_str + default_type[len(type_by_str)-2:]
-    if type_by_str_extended[2]=='s':
+    non_decimal_index = 1
+    while 1:
+      if not type_by_str[non_decimal_index].isdecimal():
+        break
+      non_decimal_index += 1
+      
+    bit_str = type_by_str[1:non_decimal_index]
+    feature_str = type_by_str[non_decimal_index]
+    
+    self.num_bits = int(bit_str)
+    default_feature_str = 'ssf'
+    feature_str = feature_str + default_feature_str[len(feature_str):]
+    if feature_str[0]=='s':
       self.is_signed_weight = True
-    elif type_by_str_extended[2]=='u':
+    elif feature_str[0]=='u':
       self.is_signed_weight = False
     else:
       assert 0
-    if type_by_str_extended[3]=='s':
+    if feature_str[1]=='s':
       self.is_signed_potential = True
-    elif type_by_str_extended[3]=='u':
+    elif feature_str[1]=='u':
       self.is_signed_potential = False
     else:
       assert 0
-    if type_by_str_extended[4]=='i':
+    if feature_str[2]=='i':
       self.is_infinite_potential = True
-    elif type_by_str_extended[4]=='f':
+    elif feature_str[2]=='f':
       self.is_infinite_potential = False
     else:
       assert 0
@@ -36,7 +45,7 @@ class NpxNeuronType():
     def __repr__(self):
       result = (self.num_bits, self.is_signed_weight, self.is_signed_potential, self.is_infinite_potential)
       return str(result)
-        
+          
   @property
   def umax(self):
     return int(2.**(self.num_bits)) - 1
@@ -77,11 +86,15 @@ class NpxNeuronType():
   def dqfactor(self):
     return self.ftarget / self.qscale
   
+  @property
+  def can_learn_threshold(self):
+    return False
+  
   def update_ftarget(self, x:Tensor):
     self.ftarget = x.abs().max()
 
   def quantize_tensor(self, x:Tensor, bounded:bool):
-    if self.is_infinite_potential:
+    if self.can_learn_threshold:
       self.update_ftarget(x)
     qx = x*self.qfactor
     if bounded:
