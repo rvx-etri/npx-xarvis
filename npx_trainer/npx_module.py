@@ -147,7 +147,7 @@ class NpxModule(nn.Module):
       qtensor = self.neuron_type.quantize_tensor(layer.weight.data, bounded=True)
       layer.weight.data = qtensor.tensor.float()
       qtensor = self.neuron_type.quantize_tensor(neuron.threshold, bounded=False)
-      neuron.threshold = qtensor.tensor.float()
+      neuron.threshold = type(neuron.threshold)(qtensor.tensor.float())
 
   def write_parameter(self, path:Path):
     assert path.parent.is_dir(), path

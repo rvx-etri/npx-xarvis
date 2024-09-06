@@ -106,15 +106,21 @@ class NpxTrainer():
     return torch.stack(spk_rec), torch.stack(mem_rec)
 
   def quantize(self, npx_define:NpxDefine, repeat_index:int):
+    print('\n[QUANTIZE]', npx_define.app_name, npx_define.test_neuron_str, repeat_index)
     npx_module = self.module_class(app_cfg_path=npx_define.app_cfg_path, neuron_type_str=npx_define.test_neuron_str).to(self.device)
     npx_module.eval()
     for history_parameter_path in npx_define.parameter_dir_path.glob(npx_define.get_parameter_filename_pattern(repeat_index, False)):
       npx_module.load_state_dict(torch.load(history_parameter_path))
-      history_parameter_text_path = npx_define.rename_path_to_parameter_text(history_parameter_path)
-      npx_module.write_parameter(history_parameter_text_path)
+      float_parameter_text_path = npx_define.rename_path_to_parameter_text(history_parameter_path)
+      if not float_parameter_text_path.is_file():
+        npx_module.write_parameter(float_parameter_text_path)
       npx_module.quantize_network()
-      npx_module.write_parameter(npx_define.rename_path_to_quant(history_parameter_text_path))
-      torch.save(npx_module.state_dict(), npx_define.rename_path_to_quant(history_parameter_path))
+      quant_parameter_text_path = npx_define.rename_path_to_quant(float_parameter_text_path)
+      if not quant_parameter_text_path.is_file():
+        npx_module.write_parameter(quant_parameter_text_path)
+      quant_parameter_path = npx_define.rename_path_to_quant(history_parameter_path)
+      if not quant_parameter_path.is_file():
+        torch.save(npx_module.state_dict(), quant_parameter_path)
 
   @staticmethod
   def format_test_result(npx_define:NpxDefine, repeat_index:int, epoch_index:int, val_result:TestResult, test_result:TestResult):
