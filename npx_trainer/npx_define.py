@@ -139,6 +139,13 @@ class NpxDefine:
     filename += NpxDefine.parameter_suffix()
     return self.riscv_dir_path / filename
   
+  def get_riscv_info_text_path(self, is_quantized:bool):
+    filename = self.app_name
+    filename += '_info'
+    filename += '_quant' if is_quantized else '_float'
+    filename += '.txt'
+    return self.riscv_dir_path / filename
+  
   def get_riscv_parameter_text_path(self, is_quantized:bool):
     filename = self.app_name
     filename += '_parameter'
