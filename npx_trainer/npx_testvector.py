@@ -59,7 +59,7 @@ def generate_testvector(npx_define:NpxDefine, npx_data_manager:NpxDataManager, n
   npx_module.eval()
   riscv_parameter_path = npx_define.get_riscv_parameter_path(is_quantized=True)
   assert riscv_parameter_path.exists(), riscv_parameter_path
-  npx_module.load_state_dict(torch.load(riscv_parameter_path))
+  npx_module.load_state_dict(torch.load(riscv_parameter_path)['npx_module'])
 
   sample_list = get_sample(npx_data_manager=npx_data_manager, num_sample=num_sample)
 

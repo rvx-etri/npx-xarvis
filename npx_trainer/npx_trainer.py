@@ -12,7 +12,6 @@ from npx_module import *
 
 class NpxTrainer():
   def __init__(self, module_class=NpxModule, gpu_id:str='-1'):
-    print(gpu_id)
     if gpu_id=='-1' or (not torch.cuda.is_available()):
       device_option = 'cpu'
     else:
@@ -23,12 +22,27 @@ class NpxTrainer():
     self.loss_function = SF.ce_rate_loss()
     self.log_interval = 100
     self.module_class = module_class
+  
+  @staticmethod
+  def save_checkpoint(npx_module, optimizer, path:Path):
+    check_point = {'npx_module': npx_module.state_dict(),
+                   'optimizer': optimizer.state_dict() if optimizer else None,
+                   }
+    torch.save(check_point, path)
+
+  @staticmethod
+  def load_checkpoint(npx_module, optimizer, path:Path):
+    check_point = torch.load(path)
+    npx_module.load_state_dict(check_point['npx_module'])
+    if optimizer:
+      optimizer.load_state_dict(check_point['optimizer'])
 
   def train(self, npx_define:NpxDefine, repeat_index:int, npx_data_manager:NpxDataManager, num_epochs:int):
     print('\n[TRAIN]', npx_define.app_name, npx_define.train_neuron_str, repeat_index, num_epochs)
     npx_data_manager.setup_loader(repeat_index)
     npx_define.parameter_dir_path.mkdir(parents=True, exist_ok=True)
     npx_module = self.module_class(app_cfg_path=npx_define.app_cfg_path, neuron_type_str=npx_define.train_neuron_str).to(self.device)
+    self.optimizer = torch.optim.Adam(npx_module.parameters())
     #print(npx_module)
     #print(npx_module.layer_sequence)
 
@@ -44,20 +58,21 @@ class NpxTrainer():
 
     start_epoch_index = previous_epoch_index + 1
     if previous_epoch_index>=0:
-      npx_module.load_state_dict(torch.load(previous_history_file))
+      self.load_checkpoint(npx_module,self.optimizer,previous_history_file)
+      #npx_module.load_state_dict(torch.load(previous_history_file))
       print(f'Start from \"{previous_history_file.name}\"')
 
     for epoch_index in range(start_epoch_index, num_epochs):
       npx_module.backup_cfg(npx_define, epoch_index)
       self.train_once(npx_module=npx_module, npx_data_manager=npx_data_manager, epoch_index=epoch_index)
-      torch.save(npx_module.state_dict(), npx_define.get_parameter_path(repeat_index,epoch_index, False))
+      self.save_checkpoint(npx_module, self.optimizer, npx_define.get_parameter_path(repeat_index,epoch_index, False))
+      #torch.save(npx_module.state_dict(), npx_define.get_parameter_path(repeat_index,epoch_index, False))
       result = self.test_once(npx_module, npx_data_manager.test_loader)
       NpxDefine.print_test_result(result)
 
   def train_once(self, npx_module:NpxModule, npx_data_manager:NpxDataManager, epoch_index:int):
     npx_module.train()
     #print(npx_module.parameters())
-    optimizer = torch.optim.Adam(npx_module.parameters())
   
     for batch_idx, (data, target) in enumerate(tqdm(npx_data_manager.train_loader)):
       data, target = data.to(self.device), target.to(self.device)
@@ -65,10 +80,10 @@ class NpxTrainer():
       spk_rec, _ = self.forward_pass(npx_module, data)
       loss_val = self.loss_function(spk_rec, target)
       
-      optimizer.zero_grad()
+      self.optimizer.zero_grad()
       loss_val.backward()
       #loss_val.backward(retain_graph=True)
-      optimizer.step()
+      self.optimizer.step()
 
       if (batch_idx % self.log_interval) == 0:
         print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
@@ -116,7 +131,8 @@ class NpxTrainer():
     npx_module = self.module_class(app_cfg_path=npx_define.app_cfg_path, neuron_type_str=npx_define.test_neuron_str).to(self.device)
     npx_module.eval()
     for history_parameter_path in npx_define.parameter_dir_path.glob(npx_define.get_parameter_filename_pattern(repeat_index, False)):
-      npx_module.load_state_dict(torch.load(history_parameter_path))
+      self.load_checkpoint(npx_module,None,history_parameter_path)
+      #npx_module.load_state_dict(torch.load(history_parameter_path))
       float_parameter_text_path = npx_define.rename_path_to_parameter_text(history_parameter_path)
       if not float_parameter_text_path.is_file():
         npx_module.write_parameter(float_parameter_text_path)
@@ -126,7 +142,8 @@ class NpxTrainer():
         npx_module.write_parameter(quant_parameter_text_path)
       quant_parameter_path = npx_define.rename_path_to_quant(history_parameter_path)
       if not quant_parameter_path.is_file():
-        torch.save(npx_module.state_dict(), quant_parameter_path)
+        self.save_checkpoint(npx_module, None, quant_parameter_path)
+        #torch.save(npx_module.state_dict(), quant_parameter_path)
 
   @staticmethod
   def format_test_result(npx_define:NpxDefine, repeat_index:int, epoch_index:int, val_result:TestResult, test_result:TestResult):
@@ -147,9 +164,11 @@ class NpxTrainer():
       npx_data_manager.setup_loader(repeat_index)
       npx_module = self.module_class(app_cfg_path=npx_define.app_cfg_path, neuron_type_str=npx_define.test_neuron_str).to(self.device)
       for history_parameter_path in sorted(npx_define.parameter_dir_path.glob(npx_define.get_parameter_filename_pattern(repeat_index, True)),reverse=True):
-        npx_module.load_state_dict(torch.load(history_parameter_path))
+        self.load_checkpoint(npx_module,None,history_parameter_path)
+        #npx_module.load_state_dict(torch.load(history_parameter_path))
         val_result = self.test_once(npx_module, npx_data_manager.val_loader)
-        npx_module.load_state_dict(torch.load(history_parameter_path))
+        self.load_checkpoint(npx_module,None,history_parameter_path)
+        #npx_module.load_state_dict(torch.load(history_parameter_path))
         test_result = self.test_once(npx_module, npx_data_manager.test_loader)
         epoch_index = npx_define.get_epoch_index_from_parameter_path(history_parameter_path)
         result_list.append((epoch_index,val_result, test_result))
