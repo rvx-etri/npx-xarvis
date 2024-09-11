@@ -5,6 +5,16 @@ from torch.utils.data.dataloader import DataLoader
 from torchvision import datasets, transforms
 
 from collections import Counter
+from requests import get
+
+def download(url:str, root:Path,file_name = None):
+  if not file_name:
+    file_name = url.split('/')[-1]
+
+  path = root / file_name
+  with open(path, "wb") as file:
+          response = get(url)
+          file.write(response.content)
 
 class NpxDataManager():
   def __init__(self, dataset_name:str, dataset_path:Path, num_kfold:int=None):
@@ -32,6 +42,11 @@ class NpxDataManager():
         transforms.Grayscale(),
         transforms.ToTensor(),
         transforms.Normalize((0,), (1,))])
+
+      download('https://github.com/zalandoresearch/fashion-mnist/raw/master/data/fashion/t10k-images-idx3-ubyte.gz', self.download_path / 'FashionMNIST/raw' )
+      download('https://github.com/zalandoresearch/fashion-mnist/raw/master/data/fashion/t10k-labels-idx1-ubyte.gz', self.download_path / 'FashionMNIST/raw' )
+      download('https://github.com/zalandoresearch/fashion-mnist/raw/master/data/fashion/train-images-idx3-ubyte.gz', self.download_path / 'FashionMNIST/raw' )
+      download('https://github.com/zalandoresearch/fashion-mnist/raw/master/data/fashion/train-labels-idx1-ubyte.gz', self.download_path / 'FashionMNIST/raw' )
       dataset_train_and_val = datasets.FashionMNIST(root=self.download_path, train=True, download=True, transform=transform)
       self.dataset_test = datasets.FashionMNIST(root=self.download_path, train=False, download=True, transform=transform)
     elif self.name=='cifar10':

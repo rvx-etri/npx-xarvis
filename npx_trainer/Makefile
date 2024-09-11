@@ -12,7 +12,7 @@ ifndef GPU_ID
 endif
 
 NUM_EPOCH=10
-NUM_REPEAT=5
+NUM_REPEAT=1
 NUM_SAMPLE=3
 
 #########
@@ -79,7 +79,7 @@ check3:
 ## PREDEFINED APP ##
 ####################
 
-PREDEFINED_APP_PREFIX_LIST=mnist_l2cf mnist_l2ff mnist_l3ccf mnist_l3fff mnist_l3cff mnist_l1f cifar10_l5cccff gtsrb_l5cccff
+PREDEFINED_APP_PREFIX_LIST=mnist_l2cf mnist_l2ff mnist_l3ccf mnist_l3fff mnist_l3cff mnist_l1f fmnist_l2cf fmnist_l3cff fmnist_l3ccf cifar10_l5cccff gtsrb_l5cccff
 NEURON_TYPE_LIST=q8ssf
 
 gen_info:
