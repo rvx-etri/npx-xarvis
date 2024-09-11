@@ -33,17 +33,24 @@ class NpxNeuronType():
       self.is_signed_potential = False
     else:
       assert 0
-    if feature_str[2]=='i':
-      self.is_infinite_potential = True
-    elif feature_str[2]=='f':
+    
+    if feature_str[2]=='f':
       self.is_infinite_potential = False
+      self.is_ftarget_updatable  = False
+    elif feature_str[2]=='i':
+      self.is_infinite_potential = True
+      self.is_ftarget_updatable  = False
+    elif feature_str[2]=='u':
+      self.is_infinite_potential = True
+      self.is_ftarget_updatable  = True
     else:
       assert 0
     
     self.mapped_fvalue = 1.0
     
-  def update_mapped_fvalue(self, fvalue):
+  def update_mapped_fvalue(self, fvalue:float):
     if self.is_infinite_potential:
+      assert fvalue > 0, fvalue
       self.mapped_fvalue = fvalue
             
   def __repr__(self):
@@ -94,7 +101,8 @@ class NpxNeuronType():
     return False
   
   def update_ftarget(self, x:Tensor):
-    pass
+    if self.is_ftarget_updatable:
+      self.mapped_fvalue = float(x.abs().max())
 
   def quantize_tensor(self, x:Tensor, bounded:bool):
     self.update_ftarget(x)
