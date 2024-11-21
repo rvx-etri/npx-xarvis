@@ -59,6 +59,14 @@ class NpxAppCfgGenerator():
       self.gen_fc_section(in_features=256, out_features=10, 
                      input_type='spike', output_type='value')
 
+    elif self.app_name.startswith('kmnist_l3fff'): # 256x64
+      self.gen_fc_section(in_features=14*14, out_features=256,
+                     input_type='value', output_type='spike')
+      self.gen_fc_section(in_features=256, out_features=256,
+                     input_type='spike', output_type='spike')
+      self.gen_fc_section(in_features=256, out_features=10,
+                     input_type='spike', output_type='value')
+
     elif self.app_name.startswith('mnist_l3cff'): # 256x64
       filter_size = 5
       self.gen_conv_section(in_channels=1, out_channels=2, kernel_size=filter_size,
@@ -164,11 +172,12 @@ class NpxAppCfgGenerator():
     self.neuron_type = npx_module.neuron_type
     self.text_parser = copy.deepcopy(npx_module.text_parser)
     self.text_parser.add_option(0, 'mapped_fvalue', self.neuron_type.mapped_fvalue)
-    for i, (layer, neuron) in enumerate(npx_module.layer_sequence):
-      self.text_parser.add_option(i+1, 'beta', float(neuron.beta))
-      self.text_parser.add_option(i+1, 'reset_mechanism', neuron.reset_mechanism)
-      self.text_parser.add_option(i+1, 'threshold', float(neuron.threshold))
-      self.text_parser.add_option(i+1, 'learn_threshold', npx_module.does_neuron_learn_threshold(neuron))
+    for i, layer in enumerate(npx_module.layer_sequence):
+      if type(layer)==snntorch.Leaky:
+        self.text_parser.add_option(i+1, 'beta', float(layer.beta))
+        self.text_parser.add_option(i+1, 'reset_mechanism', layer.reset_mechanism)
+        self.text_parser.add_option(i+1, 'threshold', float(layer.threshold))
+        self.text_parser.add_option(i+1, 'learn_threshold', npx_module.does_neuron_learn_threshold(layer))
 
   def __str__(self) -> str:
     assert self.text_parser

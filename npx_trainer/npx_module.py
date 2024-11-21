@@ -50,11 +50,14 @@ class NpxModule(nn.Module):
       self.text_parser.parse_file(self.app_cfg_path)
             
       info_list = (
-        ('dataset', 'mnist'),('timesteps', 32)
+        ('dataset', 'mnist'),('timesteps', 32),#('neuron_type', 'q8ssf'),
+        ('input_resize', '14,14'),('output_classes', 10),
+        ('spike_encoding', 'direct')
         )
       for var_name, default_value in info_list:
         value = NpxTextParser.find_option_value(self.text_parser.global_info, var_name, default_value)
         setattr(self, var_name, value)
+      #print(NpxTextParser.find_option_value(self.text_parser.global_info, 'mapped_fvalue', self.neuron_type.mapped_fvalue))
       self.neuron_type.update_mapped_fvalue(NpxTextParser.find_option_value(self.text_parser.global_info, 'mapped_fvalue', self.neuron_type.mapped_fvalue))
       
       self.layer_sequence = []
@@ -97,11 +100,14 @@ class NpxModule(nn.Module):
 
   def forward(self, x:Tensor):
     last_tensor = x
-    for i, (layer, neuron) in enumerate(self.layer_sequence):
-      if type(layer)==nn.Linear:
-        last_tensor = torch.flatten(last_tensor, 1)
-      current = self.forward_layer(i, layer, last_tensor)
-      last_tensor = self.forward_neuron(i, neuron, current)
+    for i, layer in enumerate(self.layer_sequence):
+      if (type(layer)==nn.Linear) or (type(layer)==nn.Conv2d):
+        last_tensor = self.forward_layer(i, layer, last_tensor)
+      elif type(layer)==snntorch.Leaky:
+        last_tensor = self.forward_neuron(i, layer, last_tensor)
+      else:
+        last_tensor = layer(last_tensor)
+      
 
     return last_tensor
 
@@ -134,26 +140,32 @@ class NpxModule(nn.Module):
     return current
       
   def print_parameter(self):
-    for layer, neuron in self.layer_sequence:
-      print(layer.weight)
-      print(neuron.threshold)
+    for layer in self.layer_sequence:
+      if (type(layer)==nn.Linear) or (type(layer)==nn.Conv2d):
+        print(layer.weight)
+      elif type(layer)==snntorch.Leaky:
+        print(layer.threshold)
 
   def quantize_network(self):
     assert not self.training
     assert self.neuron_type
     self.is_quantized = True
-    for layer, neuron in self.layer_sequence:
-      qtensor = self.neuron_type.quantize_tensor(layer.weight.data, bounded=True)
-      layer.weight.data = qtensor.tensor.float()
-      qtensor = self.neuron_type.quantize_tensor(neuron.threshold, bounded=False)
-      neuron.threshold = type(neuron.threshold)(qtensor.tensor.float())
+    for layer in self.layer_sequence:
+      if (type(layer)==nn.Linear) or (type(layer)==nn.Conv2d):
+        qtensor = self.neuron_type.quantize_tensor(layer.weight.data, bounded=True)
+        layer.weight.data = qtensor.tensor.float()
+      elif type(layer)==snntorch.Leaky:
+        qtensor = self.neuron_type.quantize_tensor(layer.threshold, bounded=False)
+        layer.threshold = type(layer.threshold)(qtensor.tensor.float())
 
   def write_parameter(self, path:Path):
     assert path.parent.is_dir(), path
     line_list = []
-    for layer, neuron in self.layer_sequence:
-      line_list.append(str(layer.weight.tolist()))
-      line_list.append(str(neuron.threshold.tolist()))
+    for layer in self.layer_sequence:
+      if (type(layer)==nn.Linear) or (type(layer)==nn.Conv2d):
+        line_list.append(str(layer.weight.tolist()))
+      elif type(layer)==snntorch.Leaky:
+        line_list.append(str(layer.threshold.tolist()))
     path.write_text('\n'.join(line_list))
 
   def gen_layer_sequence(self, layer_option_list):
@@ -165,19 +177,15 @@ class NpxModule(nn.Module):
         neuron_output = False
           
       if layer_option.get('section'):
-        if layer_option['section'] == 'fc':
+        if layer_option['section'] == 'Linear':
           # synapse option
           in_features = NpxTextParser.find_option_value(layer_option, 'in_features', 1)
           out_features = NpxTextParser.find_option_value(layer_option, 'out_features', 1)
           # print(in_features, out_features)
 
           layer = nn.Linear(in_features, out_features, bias=False)
-          neuron = self.make_neuron(layer_option, neuron_output)
-          self.add_module('layer' + str(i), layer)
-          self.add_module('neuron' + str(i), neuron)
-          self.layer_sequence.append((layer, neuron))
           
-        elif layer_option['section'] == 'conv':
+        elif layer_option['section'] == 'Conv2d':
           # synapse option
           in_channels = NpxTextParser.find_option_value(layer_option, 'in_channels', 1)
           out_channels = NpxTextParser.find_option_value(layer_option, 'out_channels', 1)
@@ -187,13 +195,23 @@ class NpxModule(nn.Module):
           # print(in_channels, out_channels, kernel_size, stride, padding)
 
           layer = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, bias=False)
-          neuron = self.make_neuron(layer_option, neuron_output)
-          self.add_module('layer' + str(i), layer)
-          self.add_module('neuron' + str(i), neuron)
-          self.layer_sequence.append((layer, neuron))
+
+        elif layer_option['section'] == 'MaxPool2d':
+          kernel_size = NpxTextParser.find_option_value(layer_option, 'kernel_size', 1)
+          padding = NpxTextParser.find_option_value(layer_option, 'padding', 0)
+
+          layer = nn.MaxPool2d(kernel_size, padding=padding)
             
+        elif layer_option['section'] == 'Flatten':
+          layer = nn.Flatten()
+
+        elif layer_option['section'] == 'Leaky':
+          layer = self.make_neuron(layer_option, neuron_output)
         else:
           assert 0
+
+        self.add_module('layer' + str(i), layer)
+        self.layer_sequence.append(layer)
             
       else:
         assert 0

@@ -220,7 +220,8 @@ if __name__ == '__main__':
     app_cfg_path = Path(app_cfg)
     #print(app_cfg_path)
     npx_define = NpxDefine(app_cfg_path=app_cfg_path, output_path=output_path)
-    npx_data_manager = NpxDataManager(dataset_name=npx_define.dataset_name, dataset_path=dataset_path, num_kfold=num_kfold)
+    npx_data_manager = NpxDataManager(dataset_name=npx_define.dataset_name, dataset_path=dataset_path, 
+                                      num_kfold=num_kfold, resize=npx_define.input_resize)
     if 'reset' in cmd_list:
       if npx_define.app_dir_path.is_dir():
         shutil.rmtree(npx_define.app_dir_path)

@@ -17,7 +17,7 @@ def download(url:str, root:Path,file_name = None):
           file.write(response.content)
 
 class NpxDataManager():
-  def __init__(self, dataset_name:str, dataset_path:Path, num_kfold:int=None):
+  def __init__(self, dataset_name:str, dataset_path:Path, num_kfold:int=None, resize:tuple=None):
     self.name = dataset_name
     self.download_path = dataset_path / self.name
     if num_kfold==None:
@@ -29,16 +29,33 @@ class NpxDataManager():
     self.download_path.mkdir(parents=True, exist_ok=True)
     
     if self.name=='mnist':
+      if resize==None:
+        resize=(14,14)
       transform = transforms.Compose([
-        transforms.Resize((14, 14)),
+        #transforms.Resize((14, 14)),
+        transforms.Resize(resize),
         transforms.Grayscale(),
         transforms.ToTensor(),
         transforms.Normalize((0,), (1,))])
       dataset_train_and_val = datasets.MNIST(root=self.download_path, train=True, download=True, transform=transform)
       self.dataset_test = datasets.MNIST(root=self.download_path, train=False, download=True, transform=transform)
-    elif self.name=='fmnist':
+    elif self.name=='kmnist':
+      if resize==None:
+        resize=(14,14)
       transform = transforms.Compose([
-        transforms.Resize((14, 14)),
+        #transforms.Resize((14, 14)),
+        transforms.Resize(resize),
+        transforms.Grayscale(),
+        transforms.ToTensor(),
+        transforms.Normalize((0,), (1,))])
+      dataset_train_and_val = datasets.KMNIST(root=self.download_path, train=True, download=True, transform=transform)
+      self.dataset_test = datasets.KMNIST(root=self.download_path, train=False, download=True, transform=transform)
+    elif self.name=='fmnist':
+      if resize==None:
+        resize=(14,14)
+      transform = transforms.Compose([
+        #transforms.Resize((14, 14)),
+        transforms.Resize(resize),
         transforms.Grayscale(),
         transforms.ToTensor(),
         transforms.Normalize((0,), (1,))])
@@ -50,15 +67,21 @@ class NpxDataManager():
       dataset_train_and_val = datasets.FashionMNIST(root=self.download_path, train=True, download=True, transform=transform)
       self.dataset_test = datasets.FashionMNIST(root=self.download_path, train=False, download=True, transform=transform)
     elif self.name=='cifar10':
+      if resize==None:
+        resize=(32,32)
       transform = transforms.Compose([
-        transforms.Resize((32, 32)),
+        #transforms.Resize((32, 32)),
+        transforms.Resize(resize),
         transforms.ToTensor(),
         transforms.Normalize((0, 0, 0), (1, 1, 1))])
       dataset_train_and_val = datasets.CIFAR10(root=self.download_path, train=True, download=True, transform=transform)
       self.dataset_test = datasets.CIFAR10(root=self.download_path, train=False, download=True, transform=transform)
     elif self.name=='gtsrb':
+      if resize==None:
+        resize=(32,32)
       transform = transforms.Compose([
-        transforms.Resize((32, 32)),
+        #transforms.Resize((32, 32)),
+        transforms.Resize(resize),
         transforms.ToTensor(),
         transforms.Normalize((0, 0, 0), (1, 1, 1))])
       dataset_train_and_val = datasets.GTSRB(root=self.download_path, split='train', download=True, transform=transform)

@@ -63,3 +63,4 @@ rvx_python_config.mh
 result
 generated_cfg
 app
+!mnist_app.cfg

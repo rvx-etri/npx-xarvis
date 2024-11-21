@@ -59,11 +59,13 @@ def write_parameter_to_binaryfile(npx_module:NpxModule, bin_path:Path):
   print('save riscv parameter bin file:', bin_path)
   # print(npx_module.state_dict())
   with open(bin_path, "wb") as bin_file:
-    for i, (layer, neuron) in enumerate(npx_module.layer_sequence):
-      weights = layer.weight.data.flatten()
-      threshold = neuron.threshold
-      write_data_aligned_by_4bytes(bin_file, weights, torch.int8)
-      write_data_aligned_by_4bytes(bin_file, threshold, torch.int32)
+    for i, layer in enumerate(npx_module.layer_sequence):
+      if (type(layer)==nn.Linear) or (type(layer)==nn.Conv2d):
+        weights = layer.weight.data.flatten()
+        write_data_aligned_by_4bytes(bin_file, weights, torch.int8)
+      elif type(layer)==snntorch.Leaky:
+        threshold = layer.threshold
+        write_data_aligned_by_4bytes(bin_file, threshold, torch.int32)
 
 def write_data_aligned_by_4bytes(file_io, data, data_type):
   data = data.to('cpu').to(data_type).numpy().reshape(-1)

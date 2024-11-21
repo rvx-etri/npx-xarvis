@@ -76,7 +76,8 @@ def generate_testvector(npx_define:NpxDefine, npx_data_manager:NpxDataManager, n
   print('npx_define.timesteps',npx_define.timesteps)
   spike_input = True
   for i, (data, target) in enumerate(sample_list):
-    data, target = data.to(device), target.to(device)
+    data, target = data.to(device), target.to('cpu')
+    target = target.to(torch.uint8).numpy()
     riscv_testvector_bin_path = npx_define.get_riscv_testvector_bin_path(i=i)
     riscv_sample_spike_bin_path = npx_define.get_riscv_sample_bin_path(i=i, is_spike=True)
     print(riscv_testvector_bin_path)
@@ -87,6 +88,7 @@ def generate_testvector(npx_define:NpxDefine, npx_data_manager:NpxDataManager, n
         input_data = spikegen.rate(data, num_steps=num_steps)
         with open(riscv_sample_spike_bin_path, 'wb') as spike_file:
           write_data_aligned_by_4bytes(spike_file, input_data, torch.int8)
+          spike_file.write(target)
         #print(input_data.shape)
         #print(input_data)
       else :
@@ -108,15 +110,13 @@ def manual_forward_pass(npx_module:NpxModule, data, tv_path:Path=None):
   num_steps = npx_module.timesteps
   for step in range(num_steps):
     last_tensor = data[step]
-    for i, (layer, neuron) in enumerate(npx_module.layer_sequence):
-      if type(layer)==nn.Linear:
-        last_tensor = torch.flatten(last_tensor, 1)
-      current = layer(last_tensor)
+    for i, layer in enumerate(npx_module.layer_sequence):
+      last_tensor = layer(last_tensor)
       if tv_path:
-        if i != 0:
+        if type(layer)==snntorch.Leaky:
           write_data_aligned_by_4bytes(tv_file, last_tensor, torch.int8)
-        write_data_aligned_by_4bytes(tv_file, current, torch.int32)
-      last_tensor = neuron(current)
+        else:
+          write_data_aligned_by_4bytes(tv_file, last_tensor, torch.int32)
     spk_out, mem_out = last_tensor
     if tv_path:
       write_data_aligned_by_4bytes(tv_file, spk_out, torch.int8)
@@ -159,7 +159,8 @@ if __name__ == '__main__':
     app_cfg_path = Path(app_cfg)
     print(app_cfg_path)
     npx_define = NpxDefine(app_cfg_path=app_cfg_path, output_path=output_path)
-    npx_data_manager = NpxDataManager(dataset_name=npx_define.dataset_name, dataset_path=dataset_path, num_kfold=num_kfold)
+    npx_data_manager = NpxDataManager(dataset_name=npx_define.dataset_name,
+    dataset_path=dataset_path, num_kfold=num_kfold, resize=npx_define.input_resize)
     if 'testvector' in cmd_list:
       generate_testvector(npx_define=npx_define, npx_data_manager=npx_data_manager, num_sample=num_sample)
     else:
