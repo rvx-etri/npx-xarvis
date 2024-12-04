@@ -171,10 +171,10 @@ class NpxModule(nn.Module):
   def gen_layer_sequence(self, layer_option_list):
     num_layer = len(layer_option_list)
     for i, layer_option in enumerate(layer_option_list):
-      if i == (num_layer-1):
-        neuron_output = True
-      else:
-        neuron_output = False
+      #if i == (num_layer-1):
+      #  neuron_output = True
+      #else:
+      #  neuron_output = False
           
       if layer_option.get('section'):
         if layer_option['section'] == 'Linear':
@@ -198,15 +198,24 @@ class NpxModule(nn.Module):
 
         elif layer_option['section'] == 'MaxPool2d':
           kernel_size = NpxTextParser.find_option_value(layer_option, 'kernel_size', 1)
+          stride = NpxTextParser.find_option_value(layer_option, 'strie', kernel_size)
           padding = NpxTextParser.find_option_value(layer_option, 'padding', 0)
 
-          layer = nn.MaxPool2d(kernel_size, padding=padding)
+          layer = nn.MaxPool2d(kernel_size, stride, padding)
             
+        elif layer_option['section'] == 'AvgPool2d':
+          kernel_size = NpxTextParser.find_option_value(layer_option, 'kernel_size', 1)
+          stride = NpxTextParser.find_option_value(layer_option, 'strie', kernel_size)
+          padding = NpxTextParser.find_option_value(layer_option, 'padding', 0)
+
+          layer = nn.AvgPool2d(kernel_size, stride, padding)
+
         elif layer_option['section'] == 'Flatten':
           layer = nn.Flatten()
 
         elif layer_option['section'] == 'Leaky':
-          layer = self.make_neuron(layer_option, neuron_output)
+          #layer = self.make_neuron(layer_option, neuron_output)
+          layer = self.make_neuron(layer_option, False)
         else:
           assert 0
 

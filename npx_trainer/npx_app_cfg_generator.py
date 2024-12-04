@@ -152,8 +152,8 @@ class NpxAppCfgGenerator():
     self.text_parser.add_section('fc')
     self.text_parser.add_option(-1, 'in_features', in_features)
     self.text_parser.add_option(-1, 'out_features', out_features)
-    self.text_parser.add_option(-1, 'input_type', input_type)
-    self.text_parser.add_option(-1, 'output_type', output_type)
+    #self.text_parser.add_option(-1, 'input_type', input_type)
+    #self.text_parser.add_option(-1, 'output_type', output_type)
 
   def gen_conv_section(self, in_channels:int, out_channels:int, 
                       kernel_size=3, stride=1, padding=0,
@@ -164,8 +164,8 @@ class NpxAppCfgGenerator():
     self.text_parser.add_option(-1, 'kernel_size', kernel_size)
     self.text_parser.add_option(-1, 'stride', stride)
     self.text_parser.add_option(-1, 'padding', padding)
-    self.text_parser.add_option(-1, 'input_type', input_type)
-    self.text_parser.add_option(-1, 'output_type', output_type)
+    #self.text_parser.add_option(-1, 'input_type', input_type)
+    #self.text_parser.add_option(-1, 'output_type', output_type)
 
   def import_module(self, npx_module):
     self.app_name = npx_module.app_name

@@ -3,6 +3,7 @@ import argparse
 import time
 import shutil
 import random
+import copy
 
 import numpy as np
 from torch.utils.data.dataloader import DataLoader
@@ -73,7 +74,7 @@ def generate_testvector(npx_define:NpxDefine, npx_data_manager:NpxDataManager, n
       data_file.write(value_data)
       data_file.write(value_target)
 
-  print('npx_define.timesteps',npx_define.timesteps)
+  #print('npx_define.timesteps',npx_define.timesteps)
   spike_input = True
   for i, (data, target) in enumerate(sample_list):
     data, target = data.to(device), target.to('cpu')
@@ -93,41 +94,78 @@ def generate_testvector(npx_define:NpxDefine, npx_data_manager:NpxDataManager, n
         #print(input_data)
       else :
         input_data = data.repeat(tuple([num_steps] + torch.ones(len(data.size()), dtype=int).tolist()))
-      spk_rec, _ = manual_forward_pass(npx_module, input_data, tv_path=riscv_testvector_bin_path)
+      #spk_rec, _ = manual_forward_pass(npx_module, input_data, tv_path=riscv_testvector_bin_path)
+      spk_rec = manual_forward_pass(npx_module, input_data, tv_path=riscv_testvector_bin_path)
       #spk_rec, _ = manual_forward_pass(npx_module, input_data)
       print(spk_rec.sum(0))
       inference_class_id = spk_rec.sum(0).argmax()
       print('class id from inference: ', int(inference_class_id))
-      print('class id from dataset: ', int(target))
+      print('class id from dataset: ', int(target[0]))
+
+debug_check_cpu_vs_gpu_result = False
+debug_print_layer_outout = False
 
 # for saving test vector
 def manual_forward_pass(npx_module:NpxModule, data, tv_path:Path=None):
-  mem_rec = []
   spk_rec = []
   utils.reset(npx_module)
+  if debug_check_cpu_vs_gpu_result:
+    cmp_npx_module = copy.deepcopy(npx_module).to('cpu')
   if tv_path:
     tv_file = open(tv_path, 'wb')
   num_steps = npx_module.timesteps
   for step in range(num_steps):
+    prev_layer_type = snntorch.Leaky
     last_tensor = data[step]
+    cmp_tensor = data[step].to('cpu')
+
     for i, layer in enumerate(npx_module.layer_sequence):
       last_tensor = layer(last_tensor)
+      if type(layer) == nn.AvgPool2d:
+        last_tensor = last_tensor.to(torch.int32).to(torch.float)
+      #if (type(layer) == nn.Conv2d) or (type(layer) == snntorch.Leaky):
+      #  last_tensor = last_tensor.round()
+
       if tv_path:
-        if type(layer)==snntorch.Leaky:
+        if type(layer)==snntorch.Leaky or (prev_layer_type==snntorch.Leaky and type(layer)==nn.Flatten):
           write_data_aligned_by_4bytes(tv_file, last_tensor, torch.int8)
         else:
           write_data_aligned_by_4bytes(tv_file, last_tensor, torch.int32)
-    spk_out, mem_out = last_tensor
-    if tv_path:
-      write_data_aligned_by_4bytes(tv_file, spk_out, torch.int8)
-    spk_rec.append(spk_out)
-    mem_rec.append(mem_out)
+      prev_layer_type = type(layer)
+
+      if debug_check_cpu_vs_gpu_result:
+        cmp_layer = cmp_npx_module.layer_sequence[i]
+        cmp_tensor = cmp_layer(cmp_tensor).round()
+        if (cmp_tensor==last_tensor.to('cpu')).all():
+          print('###### ok #########################################################')
+        else:
+          print('###### not ok #####################################################')
+          print(cmp_tensor.flatten()[0:10])
+          print(last_tensor.flatten().to('cpu')[0:10])
+          print(cmp_tensor.dtype)
+          print(last_tensor.dtype)
+          print(cmp_tensor==last_tensor.to('cpu'))
+
+      if debug_print_layer_outout:
+        if type(layer) == nn.Conv2d:
+          print('@@@@@@@@@@@@@ layer', i, type(layer))
+          if last_tensor.dim()>3:
+            print('layer',i,last_tensor[0][0])
+            print('layer',i,last_tensor[0][0].to(torch.int32))
+          else :
+            print('layer',i,last_tensor[0][0:20])
+        print(last_tensor.shape)
+
+    spk_rec.append(last_tensor)
+    #if step == 0: break
   if tv_path:
     tv_file.close()
-  return torch.stack(spk_rec), torch.stack(mem_rec)
+  return torch.stack(spk_rec)
 
 use_cuda = True and torch.cuda.is_available()
-device = torch.device("cuda" if use_cuda else "cpu")
+#device = torch.device("cuda:0" if use_cuda else "cpu")
+#device = torch.device("cuda:1" if use_cuda else "cpu")
+device = torch.device("cpu")
 
 if __name__ == '__main__':
 

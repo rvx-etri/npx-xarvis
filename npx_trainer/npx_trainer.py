@@ -77,7 +77,8 @@ class NpxTrainer():
     for batch_idx, (data, target) in enumerate(tqdm(npx_data_manager.train_loader)):
       data, target = data.to(self.device), target.to(self.device)
 
-      spk_rec, _ = self.forward_pass(npx_module, data)
+      #spk_rec, _ = self.forward_pass(npx_module, data)
+      spk_rec = self.forward_pass(npx_module, data)
       loss_val = self.loss_function(spk_rec, target)
       
       self.optimizer.zero_grad()
@@ -104,7 +105,8 @@ class NpxTrainer():
         data, target = data.to(self.device), target.to(self.device)
         
         cur = time.time()
-        spk_rec, _ = self.forward_pass(npx_module, data)
+        #spk_rec, _ = self.forward_pass(npx_module, data)
+        spk_rec = self.forward_pass(npx_module, data)
 
         acc += SF.accuracy_rate(spk_rec, target) * spk_rec.size(1)
 
@@ -113,18 +115,20 @@ class NpxTrainer():
     return TestResult(acc, total, total_time, model_size)
 
   def forward_pass(self, npx_module:NpxModule, data):
-    mem_rec = []
+    #mem_rec = []
     spk_rec = []
     utils.reset(npx_module)  # resets hidden states for all LIF neurons in net
 
     #num_steps = self.num_steps_to_train
     num_steps = npx_module.timesteps
     for step in range(num_steps):
-      spk_out, mem_out = npx_module(data)
+      #spk_out, mem_out = npx_module(data)
+      spk_out = npx_module(data)
       spk_rec.append(spk_out)
-      mem_rec.append(mem_out)
+      #mem_rec.append(mem_out)
 
-    return torch.stack(spk_rec), torch.stack(mem_rec)
+    #return torch.stack(spk_rec), torch.stack(mem_rec)
+    return torch.stack(spk_rec)
 
   def quantize(self, npx_define:NpxDefine, repeat_index:int):
     print('\n[QUANTIZE]', npx_define.app_name, npx_define.test_neuron_str, repeat_index)
@@ -183,9 +187,9 @@ if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='NPX Framework')
   parser.add_argument('-cfg', '-c', nargs='+', help='app cfg file name')
   parser.add_argument('-cmd', nargs='+', help='command')
-  parser.add_argument('-epoch', '-e', help='number of epoch')
-  parser.add_argument('-kfold', '-k', default=5, help='number of k-fold')
-  parser.add_argument('-repeat', '-r', default=1, help='number of repeat')
+  #parser.add_argument('-epoch', '-e', help='number of epoch')
+  #parser.add_argument('-kfold', '-k', default=5, help='number of k-fold')
+  #parser.add_argument('-repeat', '-r', default=1, help='number of repeat')
   #parser.add_argument('-test_index', '-ti', help='')
   parser.add_argument('-dataset', '-d', help='dataset directory')
   parser.add_argument('-output', '-o', help='output directory')
@@ -196,16 +200,17 @@ if __name__ == '__main__':
   args = parser.parse_args()
   assert args.cfg
   assert args.cmd
-  assert args.epoch
+  #assert args.epoch
   assert args.output
   assert args.gpu
 
   app_cfg_list = args.cfg
+  print(app_cfg_list)
   cmd_list = args.cmd
-  num_epochs = int(args.epoch)
-  
-  num_kfold = int(args.kfold)
-  num_repeat = int(args.repeat)
+  print(cmd_list)
+  #num_epochs = int(args.epoch)
+  #num_kfold = int(args.kfold)
+  #num_repeat = int(args.repeat)
   output_path = Path(args.output).absolute()
   if not output_path.is_dir():
     output_path.mkdir(parents=True)
@@ -220,6 +225,9 @@ if __name__ == '__main__':
     app_cfg_path = Path(app_cfg)
     #print(app_cfg_path)
     npx_define = NpxDefine(app_cfg_path=app_cfg_path, output_path=output_path)
+    num_epochs = npx_define.epoch
+    num_kfold = npx_define.kfold
+    num_repeat = npx_define.repeat
     npx_data_manager = NpxDataManager(dataset_name=npx_define.dataset_name, dataset_path=dataset_path, 
                                       num_kfold=num_kfold, resize=npx_define.input_resize)
     if 'reset' in cmd_list:

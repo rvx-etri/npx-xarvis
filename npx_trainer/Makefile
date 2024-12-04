@@ -11,27 +11,29 @@ ifndef GPU_ID
 	GPU_ID=-1
 endif
 
-NUM_EPOCH=10
-NUM_REPEAT=1
-NUM_SAMPLE=3
+#NUM_EPOCH=10
+#NUM_REPEAT=1
+#NUM_SAMPLE=1
 
 #########
 ## RAW ##
 #########
 
 train:
-	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(CFG_FILE) -cmd train quantize test -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR} -gpu ${GPU_ID}
+	echo $(CFG_FILE)
+	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(CFG_FILE) -cmd train quantize test -dataset ${DATASET_DIR} -o ${RESULT_DIR} -gpu ${GPU_ID}
 
 test:
-	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(CFG_FILE) -cmd quantize test -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR} -gpu ${GPU_ID}
+	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(CFG_FILE) -cmd quantize test -dataset ${DATASET_DIR} -o ${RESULT_DIR} -gpu ${GPU_ID}
 
 reset:
-	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(CFG_FILE) -cmd reset -epoch ${NUM_EPOCH} -repeat ${NUM_REPEAT} -dataset ${DATASET_DIR} -o ${RESULT_DIR} -gpu ${GPU_ID}
+	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(CFG_FILE) -cmd reset -dataset ${DATASET_DIR} -o ${RESULT_DIR} -gpu ${GPU_ID}
 	
 riscv: train
 	@${PYTHON3_CMD} ./npx_converter.py -cfg $(CFG_FILE) -o ${RESULT_DIR}
 
 tv: riscv
+	echo $(CFG_FILE)
 	@${PYTHON3_CMD} ./npx_testvector.py -cfg $(CFG_FILE) -cmd testvector -dataset ${DATASET_DIR} -s ${NUM_SAMPLE} -o ${RESULT_DIR}
 
 #########
@@ -67,13 +69,13 @@ $(addsuffix .tv, ${APP_CFG_NAME_LIST}):%.tv:
 TEST_APP_CFG_FILE=${APP_CFG_DIR}/mnist_app.cfg
 
 check1:
-	@make train CFG_FILE=${TEST_APP_CFG_FILE} NUM_EPOCH=3 NUM_REPEAT=2
+	@make train CFG_FILE=${TEST_APP_CFG_FILE}
 
 check2:
-	@make riscv CFG_FILE=${TEST_APP_CFG_FILE} NUM_EPOCH=3 NUM_REPEAT=2
+	@make riscv CFG_FILE=${TEST_APP_CFG_FILE}
 
 check3:
-	@make tv CFG_FILE=${TEST_APP_CFG_FILE} NUM_EPOCH=3 NUM_REPEAT=2 NUM_SAMPLE=${NUM_SAMPLE}
+	@make tv CFG_FILE=${TEST_APP_CFG_FILE} NUM_SAMPLE=${NUM_SAMPLE}
 
 ####################
 ## PREDEFINED APP ##

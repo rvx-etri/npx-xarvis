@@ -18,7 +18,9 @@ class NpxDefine:
     info_list = (
         ('dataset', 'mnist'),('timesteps', 32),('neuron_type', ''),
         ('train_neuron_str', ''),('test_neuron_str', ''),
-        ('input_resize', '14,14'),('output_classes', 10), ('spike_encoding', 'direct')
+        ('input_resize', '14,14'),('output_classes', 10),
+        ('spike_encoding', 'direct'),('epoch',10),
+        ('kfold',5),('repeat',1)
         )
     for var_name, default_value in info_list:
       value = NpxTextParser.find_option_value(text_parser.global_info, var_name, default_value)
