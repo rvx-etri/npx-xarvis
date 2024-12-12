@@ -107,7 +107,6 @@ class NpxModule(nn.Module):
         last_tensor = self.forward_neuron(i, layer, last_tensor)
       else:
         last_tensor = layer(last_tensor)
-      
 
     return last_tensor
 

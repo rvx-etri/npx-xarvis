@@ -183,3 +183,10 @@ class NpxDefine:
     filename += f'_{i:03}'
     filename += '.bin'
     return self.riscv_dir_path / filename
+
+  def get_riscv_testvector_text_path(self, i:int):
+    filename = self.app_name
+    filename += '_testvector'
+    filename += f'_{i:03}'
+    filename += '.text'
+    return self.riscv_dir_path / filename

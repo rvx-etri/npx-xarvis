@@ -65,9 +65,10 @@ def generate_testvector(npx_define:NpxDefine, npx_data_manager:NpxDataManager, n
   sample_list = get_sample(npx_data_manager=npx_data_manager, num_sample=num_sample)
 
   for i, (data, target) in enumerate(sample_list):
-    value_data = (data*255).to(torch.uint8).numpy()
-    value_target = target.to(torch.uint8).numpy()
-    print(value_data, value_target)
+    #value_data = (data*255).to(torch.uint8).numpy()
+    value_data = data.numpy()
+    value_target = target.to(torch.int32).numpy()
+    #print(value_data, value_target)
     riscv_sample_value_bin_path = npx_define.get_riscv_sample_bin_path(i=i, is_spike=False)
     #save_sample(riscv_sample_value_bin_path, value_data, False, 4, 1, value_target)
     with open(riscv_sample_value_bin_path, "wb") as data_file:
@@ -75,10 +76,11 @@ def generate_testvector(npx_define:NpxDefine, npx_data_manager:NpxDataManager, n
       data_file.write(value_target)
 
   #print('npx_define.timesteps',npx_define.timesteps)
+  Path("")
   spike_input = True
   for i, (data, target) in enumerate(sample_list):
     data, target = data.to(device), target.to('cpu')
-    target = target.to(torch.uint8).numpy()
+    target = target.to(torch.int32).numpy()
     riscv_testvector_bin_path = npx_define.get_riscv_testvector_bin_path(i=i)
     riscv_sample_spike_bin_path = npx_define.get_riscv_sample_bin_path(i=i, is_spike=True)
     print(riscv_testvector_bin_path)
@@ -94,8 +96,8 @@ def generate_testvector(npx_define:NpxDefine, npx_data_manager:NpxDataManager, n
         #print(input_data)
       else :
         input_data = data.repeat(tuple([num_steps] + torch.ones(len(data.size()), dtype=int).tolist()))
-      #spk_rec, _ = manual_forward_pass(npx_module, input_data, tv_path=riscv_testvector_bin_path)
-      spk_rec = manual_forward_pass(npx_module, input_data, tv_path=riscv_testvector_bin_path)
+      #spk_rec, _ = manual_forward_pass(npx_module, input_data, tv_bin_path=riscv_testvector_bin_path)
+      spk_rec = manual_forward_pass(npx_module, input_data, tv_bin_path=riscv_testvector_bin_path)
       #spk_rec, _ = manual_forward_pass(npx_module, input_data)
       print(spk_rec.sum(0))
       inference_class_id = spk_rec.sum(0).argmax()
@@ -106,13 +108,17 @@ debug_check_cpu_vs_gpu_result = False
 debug_print_layer_outout = False
 
 # for saving test vector
-def manual_forward_pass(npx_module:NpxModule, data, tv_path:Path=None):
+def manual_forward_pass(npx_module:NpxModule, data, tv_bin_path:Path=None):
   spk_rec = []
   utils.reset(npx_module)
   if debug_check_cpu_vs_gpu_result:
     cmp_npx_module = copy.deepcopy(npx_module).to('cpu')
-  if tv_path:
-    tv_file = open(tv_path, 'wb')
+  if tv_bin_path:
+    tv_file = open(tv_bin_path, 'wb')
+    tv_text_path = tv_bin_path.parent / f'{tv_bin_path.stem}.txt'
+    print(tv_text_path)
+    line_list = []
+
   num_steps = npx_module.timesteps
   for step in range(num_steps):
     prev_layer_type = snntorch.Leaky
@@ -126,11 +132,13 @@ def manual_forward_pass(npx_module:NpxModule, data, tv_path:Path=None):
       #if (type(layer) == nn.Conv2d) or (type(layer) == snntorch.Leaky):
       #  last_tensor = last_tensor.round()
 
-      if tv_path:
+      if tv_bin_path:
         if type(layer)==snntorch.Leaky or (prev_layer_type==snntorch.Leaky and type(layer)==nn.Flatten):
           write_data_aligned_by_4bytes(tv_file, last_tensor, torch.int8)
         else:
           write_data_aligned_by_4bytes(tv_file, last_tensor, torch.int32)
+        line_list.append(str(last_tensor.tolist()))
+
       prev_layer_type = type(layer)
 
       if debug_check_cpu_vs_gpu_result:
@@ -147,19 +155,18 @@ def manual_forward_pass(npx_module:NpxModule, data, tv_path:Path=None):
           print(cmp_tensor==last_tensor.to('cpu'))
 
       if debug_print_layer_outout:
-        if type(layer) == nn.Conv2d:
-          print('@@@@@@@@@@@@@ layer', i, type(layer))
-          if last_tensor.dim()>3:
-            print('layer',i,last_tensor[0][0])
-            print('layer',i,last_tensor[0][0].to(torch.int32))
-          else :
-            print('layer',i,last_tensor[0][0:20])
+        print('@@@ step', step,' layer', i, type(layer))
+        if last_tensor.dim()>3:
+          print(last_tensor[0][0])
+        else :
+          print(last_tensor[0][0:20])
         print(last_tensor.shape)
 
     spk_rec.append(last_tensor)
     #if step == 0: break
-  if tv_path:
+  if tv_bin_path:
     tv_file.close()
+    tv_text_path.write_text('\n'.join(line_list))
   return torch.stack(spk_rec)
 
 use_cuda = True and torch.cuda.is_available()
