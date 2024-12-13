@@ -20,7 +20,6 @@ endif
 #########
 
 train:
-	echo $(CFG_FILE)
 	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(CFG_FILE) -cmd train quantize test -dataset ${DATASET_DIR} -o ${RESULT_DIR} -gpu ${GPU_ID}
 
 test:
@@ -33,8 +32,10 @@ riscv: train
 	@${PYTHON3_CMD} ./npx_converter.py -cfg $(CFG_FILE) -o ${RESULT_DIR}
 
 tv: riscv
-	echo $(CFG_FILE)
 	@${PYTHON3_CMD} ./npx_testvector.py -cfg $(CFG_FILE) -cmd testvector -dataset ${DATASET_DIR} -s ${NUM_SAMPLE} -o ${RESULT_DIR}
+
+opi:
+	@${PYTHON3_CMD} ./npx_operator_info.py -cfg $(CFG_FILE) -o ${RESULT_DIR} -hw_info ${HW_INFO_PATH}
 
 #########
 ## APP ##

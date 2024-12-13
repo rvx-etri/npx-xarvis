@@ -11,8 +11,8 @@ class NpxDefine:
     self.app_cfg_path = app_cfg_path
     self.output_path = output_path
 
-    text_parser = NpxTextParser()
-    text_parser.parse_file(self.app_cfg_path)
+    self.text_parser = NpxTextParser()
+    self.text_parser.parse_file(self.app_cfg_path)
     #text_parser.write_file(self.app_cfg_path)
     
     info_list = (
@@ -23,7 +23,7 @@ class NpxDefine:
         ('kfold',5),('repeat',1)
         )
     for var_name, default_value in info_list:
-      value = NpxTextParser.find_option_value(text_parser.global_info, var_name, default_value)
+      value = NpxTextParser.find_option_value(self.text_parser.global_info, var_name, default_value)
       setattr(self, var_name, value)
       self.__dict__[var_name] = value
 
@@ -190,3 +190,8 @@ class NpxDefine:
     filename += f'_{i:03}'
     filename += '.text'
     return self.riscv_dir_path / filename
+
+  def get_operator_info_path(self):
+    return self.riscv_dir_path / f'{self.app_cfg_path.stem}.opi'
+    #return self.riscv_dir_path / f'{self.app_cfg_path.stem}_op_info{self.app_cfg_path.suffix}'
+
