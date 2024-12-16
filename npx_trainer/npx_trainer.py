@@ -32,7 +32,7 @@ class NpxTrainer():
 
   @staticmethod
   def load_checkpoint(npx_module, optimizer, path:Path):
-    check_point = torch.load(path)
+    check_point = torch.load(path, weights_only=False)
     npx_module.load_state_dict(check_point['npx_module'])
     if optimizer:
       optimizer.load_state_dict(check_point['optimizer'])

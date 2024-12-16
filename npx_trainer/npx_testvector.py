@@ -60,30 +60,39 @@ def generate_testvector(npx_define:NpxDefine, npx_data_manager:NpxDataManager, n
   npx_module.eval()
   riscv_parameter_path = npx_define.get_riscv_parameter_path(is_quantized=True)
   assert riscv_parameter_path.exists(), riscv_parameter_path
-  npx_module.load_state_dict(torch.load(riscv_parameter_path)['npx_module'])
+  npx_module.load_state_dict(torch.load(riscv_parameter_path, weights_only=False)['npx_module'])
 
   sample_list = get_sample(npx_data_manager=npx_data_manager, num_sample=num_sample)
 
-  for i, (data, target) in enumerate(sample_list):
-    #value_data = (data*255).to(torch.uint8).numpy()
-    value_data = data.numpy()
-    value_target = target.to(torch.int32).numpy()
-    #print(value_data, value_target)
-    riscv_sample_value_bin_path = npx_define.get_riscv_sample_bin_path(i=i, is_spike=False)
-    #save_sample(riscv_sample_value_bin_path, value_data, False, 4, 1, value_target)
-    with open(riscv_sample_value_bin_path, "wb") as data_file:
-      data_file.write(value_data)
-      data_file.write(value_target)
+  #for i, (data, target) in enumerate(sample_list):
+  #  raw_data = (data*255).round().to(torch.uint8).numpy()
+  #  #value_data = data.numpy()
+  #  value_target = target.to(torch.int32).numpy()
+  #  #print(value_data, value_target)
+  #  riscv_sample_value_bin_path = npx_define.get_riscv_sample_bin_path(i=i, is_spike=False)
+  #  #save_sample(riscv_sample_value_bin_path, raw_data, False, 4, 1, value_target)
+  #  with open(riscv_sample_value_bin_path, "wb") as data_file:
+  #    data_file.write(raw_data)
+  #    data_file.write(value_target)
 
   #print('npx_define.timesteps',npx_define.timesteps)
   Path("")
-  spike_input = True
+  spike_input = False
   for i, (data, target) in enumerate(sample_list):
     data, target = data.to(device), target.to('cpu')
+    raw_data = (data*255).round()
     target = target.to(torch.int32).numpy()
+
+    # save value(raw data) sample
+    riscv_sample_value_bin_path = npx_define.get_riscv_sample_bin_path(i=i, is_spike=False)
+    with open(riscv_sample_value_bin_path, "wb") as data_file:
+      data_file.write(raw_data.to(torch.uint8).numpy())
+      data_file.write(target)
+
+    # save spike(rate coded data) sample and testvector
     riscv_testvector_bin_path = npx_define.get_riscv_testvector_bin_path(i=i)
     riscv_sample_spike_bin_path = npx_define.get_riscv_sample_bin_path(i=i, is_spike=True)
-    print(riscv_testvector_bin_path)
+    #print(riscv_testvector_bin_path)
     #if not riscv_testvector_bin_path.is_file():
     if True:
       num_steps = npx_define.timesteps
@@ -95,20 +104,18 @@ def generate_testvector(npx_define:NpxDefine, npx_data_manager:NpxDataManager, n
         #print(input_data.shape)
         #print(input_data)
       else :
-        input_data = data.repeat(tuple([num_steps] + torch.ones(len(data.size()), dtype=int).tolist()))
-      #spk_rec, _ = manual_forward_pass(npx_module, input_data, tv_bin_path=riscv_testvector_bin_path)
-      spk_rec = manual_forward_pass(npx_module, input_data, tv_bin_path=riscv_testvector_bin_path)
-      #spk_rec, _ = manual_forward_pass(npx_module, input_data)
-      print(spk_rec.sum(0))
+        input_data = raw_data.repeat(tuple([num_steps] + torch.ones(len(data.size()), dtype=int).tolist()))
+      spk_rec = manual_forward_pass(npx_module, input_data, tv_bin_path=riscv_testvector_bin_path, raw_in = not spike_input)
+      print('output spikes: ', spk_rec.sum(0))
       inference_class_id = spk_rec.sum(0).argmax()
       print('class id from inference: ', int(inference_class_id))
       print('class id from dataset: ', int(target[0]))
 
 debug_check_cpu_vs_gpu_result = False
-debug_print_layer_outout = False
+debug_print_layer_outout = True
 
 # for saving test vector
-def manual_forward_pass(npx_module:NpxModule, data, tv_bin_path:Path=None):
+def manual_forward_pass(npx_module:NpxModule, data, tv_bin_path:Path=None, raw_in=False):
   spk_rec = []
   utils.reset(npx_module)
   if debug_check_cpu_vs_gpu_result:
@@ -120,6 +127,13 @@ def manual_forward_pass(npx_module:NpxModule, data, tv_bin_path:Path=None):
     line_list = []
 
   num_steps = npx_module.timesteps
+
+  if raw_in == True:
+    for i, layer in enumerate(npx_module.layer_sequence):
+      if type(layer)==snntorch.Leaky:
+        layer.threshold *= 255
+        break
+
   for step in range(num_steps):
     prev_layer_type = snntorch.Leaky
     last_tensor = data[step]
@@ -202,7 +216,7 @@ if __name__ == '__main__':
   # cfg
   for app_cfg in app_cfg_list:
     app_cfg_path = Path(app_cfg)
-    print(app_cfg_path)
+    #print(app_cfg_path)
     npx_define = NpxDefine(app_cfg_path=app_cfg_path, output_path=output_path)
     npx_data_manager = NpxDataManager(dataset_name=npx_define.dataset_name,
     dataset_path=dataset_path, num_kfold=num_kfold, resize=npx_define.input_resize)

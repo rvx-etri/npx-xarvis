@@ -46,7 +46,7 @@ def generate_riscv_binary(npx_define:NpxDefine):
 
   npx_module = NpxModule(app_cfg_path=npx_define.app_cfg_path,
                        neuron_type_str=npx_define.train_neuron_str)
-  npx_module.load_state_dict(torch.load(riscv_parameter_path)['npx_module'])
+  npx_module.load_state_dict(torch.load(riscv_parameter_path, weights_only=False)['npx_module'])
 
   riscv_parameter_bin_path = npx_define.get_riscv_parameter_bin_path(True)
   #print(riscv_parameter_bin_path)
