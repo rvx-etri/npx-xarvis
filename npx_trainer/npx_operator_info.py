@@ -15,7 +15,7 @@ def gen_operator_info(npx_define:NpxDefine, hw_info_path:Path):
   for define in hw_info:
     if define.startswith('#define INCLUDE_'):
       included_hw.append(define.strip().replace('#define INCLUDE_', ''))
-  print(included_hw)
+  #print(included_hw)
     
   operator_info = NpxTextParser()
   for i, layer_option in enumerate(npx_define.text_parser.layer_info_list):
@@ -46,7 +46,7 @@ def gen_operator_info(npx_define:NpxDefine, hw_info_path:Path):
 
   #print(npx_define.text_parser.layer_info_list)
   #print(str(npx_define.text_parser))
-  print(str(operator_info))
+  #print(str(operator_info))
 
   operator_info_path = npx_define.get_operator_info_path()
   #print(operator_info_path)

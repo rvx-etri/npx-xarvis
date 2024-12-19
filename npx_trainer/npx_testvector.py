@@ -106,13 +106,13 @@ def generate_testvector(npx_define:NpxDefine, npx_data_manager:NpxDataManager, n
       else :
         input_data = raw_data.repeat(tuple([num_steps] + torch.ones(len(data.size()), dtype=int).tolist()))
       spk_rec = manual_forward_pass(npx_module, input_data, tv_bin_path=riscv_testvector_bin_path, raw_in = not spike_input)
-      print('output spikes: ', spk_rec.sum(0))
+      print('output spikes: ', spk_rec.sum(0).data)
       inference_class_id = spk_rec.sum(0).argmax()
       print('class id from inference: ', int(inference_class_id))
       print('class id from dataset: ', int(target[0]))
 
 debug_check_cpu_vs_gpu_result = False
-debug_print_layer_outout = True
+debug_print_layer_outout = False
 
 # for saving test vector
 def manual_forward_pass(npx_module:NpxModule, data, tv_bin_path:Path=None, raw_in=False):
