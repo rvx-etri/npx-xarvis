@@ -228,10 +228,11 @@ class NpxModule(nn.Module):
     beta = NpxTextParser.find_option_value(layer_option, 'beta', 1.0)
     reset_mechanism = NpxTextParser.find_option_value(layer_option, 'reset_mechanism', 'zero')
     threshold = NpxTextParser.find_option_value(layer_option, 'threshold', 1.0)
+    #spike_grad = surrogate.fast_sigmoid(slope=25)
     if self.can_learn_neural_threshold:
       learn_threshold = NpxTextParser.find_option_value(layer_option, 'learn_threshold', False)
     else:
       learn_threshold = False
-    neuron = snntorch.Leaky(beta=beta, threshold=threshold, init_hidden=True, 
+    neuron = snntorch.Leaky(beta=beta, threshold=threshold, init_hidden=True, #spike_grad=spike_grad,
                 reset_mechanism=reset_mechanism, learn_threshold=learn_threshold, output=neuron_output)
     return neuron

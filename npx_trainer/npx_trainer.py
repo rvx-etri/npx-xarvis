@@ -5,6 +5,8 @@ import shutil
 from pathlib import *
 from tqdm.auto import tqdm
 from collections import namedtuple
+from torchvision.transforms import Resize
+import torch.nn as nn
 
 from npx_define import *
 from npx_data_manager import *
@@ -19,7 +21,8 @@ class NpxTrainer():
     self.device = torch.device(device_option)
         
     #self.num_steps_to_train = 32
-    self.loss_function = SF.ce_rate_loss()
+    #self.loss_function = SF.ce_rate_loss()
+    self.loss_function = SF.mse_count_loss(correct_rate=0.8, incorrect_rate=0.2)
     self.log_interval = 100
     self.module_class = module_class
   
@@ -63,7 +66,7 @@ class NpxTrainer():
       self.train_once(npx_module=npx_module, npx_data_manager=npx_data_manager, epoch_index=epoch_index)
       self.save_checkpoint(npx_module, self.optimizer, npx_define.get_parameter_path(repeat_index,epoch_index, False))
       #torch.save(npx_module.state_dict(), npx_define.get_parameter_path(repeat_index,epoch_index, False))
-      result = self.test_once(npx_module, npx_data_manager.test_loader)
+      result = self.test_once(npx_module, npx_data_manager)
       NpxDefine.print_test_result(result)
 
   def train_once(self, npx_module:NpxModule, npx_data_manager:NpxDataManager, epoch_index:int):
@@ -71,8 +74,11 @@ class NpxTrainer():
   
     for batch_idx, (data, target) in enumerate(tqdm(npx_data_manager.train_loader)):
       data, target = data.to(self.device), target.to(self.device)
+      if npx_data_manager.resize[-2:] != data.shape[-2:]:
+        data = nn.functional.interpolate(data, size=npx_data_manager.resize)
+        #data = nn.functional.interpolate(data, size=npx_data_manager.resize, mode='bilinear')
 
-      spk_rec = self.forward_pass(npx_module, data)
+      spk_rec = self.forward_pass(npx_module, data, npx_data_manager.data_format)
       loss_val = self.loss_function(spk_rec, target)
       
       self.optimizer.zero_grad()
@@ -85,7 +91,7 @@ class NpxTrainer():
           epoch_index, batch_idx * len(data), len(npx_data_manager.train_loader.dataset),
           100. * batch_idx / len(npx_data_manager.train_loader), loss_val.item()))
   
-  def test_once(self, npx_module:NpxModule, data_loader):
+  def test_once(self, npx_module:NpxModule, npx_data_manager:NpxDataManager):
     npx_module.eval()
     total = 0
     acc = 0
@@ -95,11 +101,13 @@ class NpxTrainer():
     #model_size = os.path.getsize("tmp.pth") / 1e6
     #os.remove("tmp.pth")
     with torch.no_grad():
-      for data, target in tqdm(data_loader):
+      for data, target in tqdm(npx_data_manager.test_loader):
         data, target = data.to(self.device), target.to(self.device)
-        
+        if npx_data_manager.resize[-2:] != data.shape[-2:]:
+          data = nn.functional.interpolate(data, size=npx_data_manager.resize)
+          #data = nn.functional.interpolate(data, size=npx_data_manager.resize, mode='bilinear')
         cur = time.time()
-        spk_rec = self.forward_pass(npx_module, data)
+        spk_rec = self.forward_pass(npx_module, data, npx_data_manager.data_format)
 
         acc += SF.accuracy_rate(spk_rec, target) * spk_rec.size(1)
 
@@ -107,15 +115,22 @@ class NpxTrainer():
         total += spk_rec.size(1)
     return TestResult(acc, total, total_time, model_size)
 
-  def forward_pass(self, npx_module:NpxModule, data):
+  def forward_pass(self, npx_module:NpxModule, data, data_format=DataFormat.MATRIX3D):
     spk_rec = []
     utils.reset(npx_module)  # resets hidden states for all LIF neurons in net
 
     #num_steps = self.num_steps_to_train
     num_steps = npx_module.timesteps
-    for step in range(num_steps):
-      spk_out = npx_module(data)
-      spk_rec.append(spk_out)
+    if data_format==DataFormat.MATRIX4D:
+      for step in range(num_steps):
+        spk_out = npx_module(data[step])
+        spk_rec.append(spk_out)
+    elif data_format==DataFormat.MATRIX3D:
+      for step in range(num_steps):
+        spk_out = npx_module(data)
+        spk_rec.append(spk_out)
+    else:
+      assert(0)
 
     return torch.stack(spk_rec)
 
@@ -159,10 +174,10 @@ class NpxTrainer():
       for history_parameter_path in sorted(npx_define.parameter_dir_path.glob(npx_define.get_parameter_filename_pattern(repeat_index, True)),reverse=True):
         self.load_checkpoint(npx_module,None,history_parameter_path)
         #npx_module.load_state_dict(torch.load(history_parameter_path))
-        val_result = self.test_once(npx_module, npx_data_manager.val_loader)
+        val_result = self.test_once(npx_module, npx_data_manager)
         self.load_checkpoint(npx_module,None,history_parameter_path)
         #npx_module.load_state_dict(torch.load(history_parameter_path))
-        test_result = self.test_once(npx_module, npx_data_manager.test_loader)
+        test_result = self.test_once(npx_module, npx_data_manager)
         epoch_index = npx_define.get_epoch_index_from_parameter_path(history_parameter_path)
         result_list.append((epoch_index,val_result, test_result))
       line_list = []
@@ -178,7 +193,6 @@ if __name__ == '__main__':
   parser.add_argument('-cmd', nargs='+', help='command')
   parser.add_argument('-dataset', '-d', help='dataset directory')
   parser.add_argument('-output', '-o', help='output directory')
-  parser.add_argument('-cfg_dir', '-p', help='app cfg directory')
   parser.add_argument('-gpu', '-g', default='-1', type=str, help='gpu id or -1 for cpu')
 
   # check args
@@ -203,10 +217,11 @@ if __name__ == '__main__':
   for app_cfg in app_cfg_list:
     app_cfg_path = Path(app_cfg)
     npx_define = NpxDefine(app_cfg_path=app_cfg_path, output_path=output_path)
+    app_pre_path = app_cfg_path.parent / f'{app_cfg_path.stem}.pre'
     num_epochs = npx_define.epoch
     num_kfold = npx_define.kfold
     num_repeat = npx_define.repeat
-    npx_data_manager = NpxDataManager(dataset_name=npx_define.dataset_name, dataset_path=dataset_path, 
+    npx_data_manager = NpxDataManager(app_pre_path=app_pre_path, dataset_path=dataset_path, 
                                       num_kfold=num_kfold, resize=npx_define.input_resize)
     if 'reset' in cmd_list:
       if npx_define.app_dir_path.is_dir():

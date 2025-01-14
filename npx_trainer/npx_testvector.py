@@ -6,7 +6,6 @@ import random
 import copy
 
 import numpy as np
-from torch.utils.data.dataloader import DataLoader
 from pathlib import *
 from tqdm.auto import tqdm
 from collections import namedtuple
@@ -16,41 +15,137 @@ from npx_data_manager import *
 from npx_module import *
 from npx_converter import write_data_aligned_by_4bytes
 
-'''
-def save_sample(path:Path, data:np.ndarray, is_spike:int, byte_per_data:int,
-    num_steps, target:np.ndarray):
-  header = np.zeros(4).astype(np.uint8)
-  header[0] = is_spike
-  header[1] = byte_per_data
-  header[2] = num_steps
-  header[3] = target[0]
+import torch
+import torch.nn as nn
+from torch.utils.data.dataset import Dataset
+import tonic
+from npx_to_frame import npx_to_frame
 
-  print(path)
-  #print(data.shape)
-  height = np.array(data.shape[2]).astype(np.int32)
-  width = np.array(data.shape[3]).astype(np.int32)
-  channel = np.array(data.shape[1]).astype(np.int32)
-  print(height, width, channel)
-  #print(type(height))
-
-  with open(path, "wb") as data_file:
-    data_file.write(header)
-    data_file.write(height)
-    data_file.write(width)
-    data_file.write(channel)
-    data_file.write(data)
-  #print(type(data))
-'''
-
-def get_sample(npx_data_manager:NpxDataManager, num_sample:int):
-  data_loader = DataLoader(npx_data_manager.dataset_test, batch_size=1, shuffle=True, drop_last=False)
+def get_sample(dataset:Dataset, num_sample:int):
+  num_data = len(dataset) 
+  random_sample_idx_list = random.sample(range(num_data), num_sample)
+  #random_sample_idx_list = [0]
   sample_list = []
-  for i in range(num_sample):
-    data, target = next(iter(data_loader))
+  for idx in random_sample_idx_list:
+    data, target = dataset[idx]
     sample_list.append((data, target))
     #print(data, target)
 
   return sample_list 
+
+def convert_dvs_dtype(events:np.ndarray) -> torch.Tensor:
+  dtype = np.int32
+  type_converted_events = events.astype(np.dtype([("x", dtype), ("y", dtype), ("p", dtype), ("t", dtype)])).view((dtype, 4))
+  return torch.Tensor(type_converted_events).to(torch.int32)
+  #return events.astype(np.dtype([("x", np.int16), ("y", np.int16), ("p", np.int8), ("t", np.int32)]))
+
+def trasform_to_frame(events, sensor_size, n_time_bins: int, overlap: float=0.0, use_tonic=False):
+  if use_tonic:
+    frames = tonic.functional.to_frame_numpy(events, sensor_size=sensor_size, n_time_bins=n_time_bins, overlap=overlap)
+    frames = torch.Tensor(frames)
+    frames = torch.unsqueeze(frames, dim=1)
+  else:
+    data = convert_dvs_dtype(events)
+    frames = npx_to_frame(data, sensor_size, n_time_bins, overlap)
+    frames = frames.to(device)
+  return frames
+
+def list_to_string(lst):
+    if isinstance(lst[0], list):  # ���� ������ ���������� ����
+        return '\n'.join(list_to_string(sublist) for sublist in lst)
+    else:  # ������ ����
+        return ' '.join(map(str, lst))
+
+def save_sample(npx_define:NpxDefine, data:torch.Tensor, target:torch.Tensor, i:int, data_format:DataFormat, data_type:torch.dtype):
+    riscv_sample_bin_path = npx_define.get_riscv_sample_bin_path(i=i, data_format=data_format)
+    with open(riscv_sample_bin_path, "wb") as data_file:
+      write_data_aligned_by_4bytes(data_file, data, data_type)
+      data_file.write(target)
+    riscv_sample_text_path = riscv_sample_bin_path.parent / f'{riscv_sample_bin_path.stem}.txt'
+    line_list = []
+    line_list.append(list_to_string(data.tolist()))
+    line_list.append(str(target.tolist()))
+    riscv_sample_text_path.write_text('\n'.join(line_list))
+
+def _generate_testvector_for_dvs_input(npx_module:NpxModule, npx_define:NpxDefine, npx_data_manager:NpxDataManager, num_sample:int):
+  sample_list = get_sample(dataset=npx_data_manager.dataset_test_raw, num_sample=num_sample)
+
+  #print('npx_define.timesteps',npx_define.timesteps)
+  for i, (data, target) in enumerate(sample_list):
+    #print('num events:', len(data))
+    frames = trasform_to_frame(data, npx_data_manager.sensor_size, npx_data_manager.timesteps, use_tonic=False)
+    target = torch.Tensor([target]).to(torch.int32).numpy()
+
+    # save dvs data sample
+    coverted_data = convert_dvs_dtype(data)
+    save_sample(npx_define, coverted_data, target, i, DataFormat.DVS, torch.int32)
+
+    # save frames data sample
+    #save_sample(npx_define, frames, target, i, DataFormat.MATRIX4D, torch.uint8)
+
+    print(frames[0])
+    # resize
+    print(npx_data_manager.resize, frames.shape[-2:])
+    if npx_data_manager.resize[-2:] != frames.shape[-2:]:
+      resized_frames = nn.functional.interpolate(frames, size=npx_data_manager.resize)
+      #frames = nn.functional.interpolate(frames, size=npx_data_manager.resize, mode='bilinear')
+    else:
+      resized_frames = frames
+    print(resized_frames[0])
+    save_sample(npx_define, resized_frames, target, i, DataFormat.MATRIX4D, torch.uint8)
+
+    # save testvector
+    riscv_testvector_bin_path = npx_define.get_riscv_testvector_bin_path(i=i)
+    #if not riscv_testvector_bin_path.is_file():
+    if True:
+      assert(npx_define.timesteps == npx_data_manager.timesteps)
+      spk_rec = manual_forward_pass(npx_module, resized_frames, tv_bin_path=riscv_testvector_bin_path)
+      print('output spikes: ', spk_rec.data)
+      print('output spikes: ', spk_rec.sum(0).data)
+      inference_class_id = spk_rec.sum(0).argmax()
+      print('class id from inference: ', int(inference_class_id))
+      print('class id from dataset: ', int(target[0]))
+
+def _generate_testvector_for_matrix_2d_input(npx_module:NpxModule, npx_define:NpxDefine, npx_data_manager:NpxDataManager, num_sample:int):
+  sample_list = get_sample(dataset=npx_data_manager.dataset_test, num_sample=num_sample)
+
+  #print('npx_define.timesteps',npx_define.timesteps)
+  spike_input = False
+  for i, (data, target) in enumerate(sample_list):
+    data = torch.unsqueeze(data, dim=1).to(device)
+    raw_data = (data*255).round()
+    target = torch.Tensor([target]).to(torch.int32).numpy()
+    #target = target.to(torch.int32).numpy()
+
+    # save value(raw data) sample
+    save_sample(npx_define, raw_data, target, i, DataFormat.MATRIX3D, torch.uint8)
+
+    num_steps = npx_define.timesteps
+    if spike_input:
+      if npx_data_manager.resize[-2:] != data.shape[-2:]:
+        resized_data = nn.functional.interpolate(data, size=npx_data_manager.resize)
+      else:
+        resized_data = data
+      input_data = spikegen.rate(resized_data, num_steps=num_steps)
+      save_sample(npx_define, input_data, target, i, DataFormat.MATRIX4D, torch.int8)
+    else :
+      if npx_data_manager.resize[-2:] != raw_data.shape[-2:]:
+        resized_data = nn.functional.interpolate(raw_data, size=npx_data_manager.resize)
+      else:
+        resized_data = data
+      input_data = resized_data.repeat(tuple([num_steps] + torch.ones(len(raw_data.size()), dtype=int).tolist()))
+      scale_threshold_for_first_leaky_layer(npx_module, 255);
+
+    # save spike(rate coded data) sample and testvector
+    riscv_testvector_bin_path = npx_define.get_riscv_testvector_bin_path(i=i)
+    #if not riscv_testvector_bin_path.is_file():
+    if True:
+      spk_rec = manual_forward_pass(npx_module, input_data, tv_bin_path=riscv_testvector_bin_path)
+      print('output spikes: ', spk_rec.data)
+      print('output spikes: ', spk_rec.sum(0).data)
+      inference_class_id = spk_rec.sum(0).argmax()
+      print('class id from inference: ', int(inference_class_id))
+      print('class id from dataset: ', int(target[0]))
 
 def generate_testvector(npx_define:NpxDefine, npx_data_manager:NpxDataManager, num_sample:int):
   print('\n[TEST VECTOR]', npx_define.app_name)
@@ -62,60 +157,22 @@ def generate_testvector(npx_define:NpxDefine, npx_data_manager:NpxDataManager, n
   assert riscv_parameter_path.exists(), riscv_parameter_path
   npx_module.load_state_dict(torch.load(riscv_parameter_path, weights_only=False)['npx_module'])
 
-  sample_list = get_sample(npx_data_manager=npx_data_manager, num_sample=num_sample)
-
-  #for i, (data, target) in enumerate(sample_list):
-  #  raw_data = (data*255).round().to(torch.uint8).numpy()
-  #  #value_data = data.numpy()
-  #  value_target = target.to(torch.int32).numpy()
-  #  #print(value_data, value_target)
-  #  riscv_sample_value_bin_path = npx_define.get_riscv_sample_bin_path(i=i, is_spike=False)
-  #  #save_sample(riscv_sample_value_bin_path, raw_data, False, 4, 1, value_target)
-  #  with open(riscv_sample_value_bin_path, "wb") as data_file:
-  #    data_file.write(raw_data)
-  #    data_file.write(value_target)
-
-  #print('npx_define.timesteps',npx_define.timesteps)
-  Path("")
-  spike_input = False
-  for i, (data, target) in enumerate(sample_list):
-    data, target = data.to(device), target.to('cpu')
-    raw_data = (data*255).round()
-    target = target.to(torch.int32).numpy()
-
-    # save value(raw data) sample
-    riscv_sample_value_bin_path = npx_define.get_riscv_sample_bin_path(i=i, is_spike=False)
-    with open(riscv_sample_value_bin_path, "wb") as data_file:
-      data_file.write(raw_data.to(torch.uint8).numpy())
-      data_file.write(target)
-
-    # save spike(rate coded data) sample and testvector
-    riscv_testvector_bin_path = npx_define.get_riscv_testvector_bin_path(i=i)
-    riscv_sample_spike_bin_path = npx_define.get_riscv_sample_bin_path(i=i, is_spike=True)
-    #print(riscv_testvector_bin_path)
-    #if not riscv_testvector_bin_path.is_file():
-    if True:
-      num_steps = npx_define.timesteps
-      if spike_input:
-        input_data = spikegen.rate(data, num_steps=num_steps)
-        with open(riscv_sample_spike_bin_path, 'wb') as spike_file:
-          write_data_aligned_by_4bytes(spike_file, input_data, torch.int8)
-          spike_file.write(target)
-        #print(input_data.shape)
-        #print(input_data)
-      else :
-        input_data = raw_data.repeat(tuple([num_steps] + torch.ones(len(data.size()), dtype=int).tolist()))
-      spk_rec = manual_forward_pass(npx_module, input_data, tv_bin_path=riscv_testvector_bin_path, raw_in = not spike_input)
-      print('output spikes: ', spk_rec.sum(0).data)
-      inference_class_id = spk_rec.sum(0).argmax()
-      print('class id from inference: ', int(inference_class_id))
-      print('class id from dataset: ', int(target[0]))
+  if npx_data_manager.raw_data_format == DataFormat.MATRIX3D:
+    _generate_testvector_for_matrix_2d_input(npx_module, npx_define, npx_data_manager, num_sample)
+  if npx_data_manager.raw_data_format == DataFormat.DVS:
+    _generate_testvector_for_dvs_input(npx_module, npx_define, npx_data_manager, num_sample)
 
 debug_check_cpu_vs_gpu_result = False
 debug_print_layer_outout = False
 
+def scale_threshold_for_first_leaky_layer(npx_module:NpxModule, scale:float=1.0):
+  for i, layer in enumerate(npx_module.layer_sequence):
+    if type(layer)==snntorch.Leaky:
+      layer.threshold *= scale
+      break
+
 # for saving test vector
-def manual_forward_pass(npx_module:NpxModule, data, tv_bin_path:Path=None, raw_in=False):
+def manual_forward_pass(npx_module:NpxModule, data, tv_bin_path:Path=None):
   spk_rec = []
   utils.reset(npx_module)
   if debug_check_cpu_vs_gpu_result:
@@ -127,20 +184,15 @@ def manual_forward_pass(npx_module:NpxModule, data, tv_bin_path:Path=None, raw_i
     line_list = []
 
   num_steps = npx_module.timesteps
-
-  if raw_in == True:
-    for i, layer in enumerate(npx_module.layer_sequence):
-      if type(layer)==snntorch.Leaky:
-        layer.threshold *= 255
-        break
-
   for step in range(num_steps):
     prev_layer_type = snntorch.Leaky
     last_tensor = data[step]
     cmp_tensor = data[step].to('cpu')
 
     for i, layer in enumerate(npx_module.layer_sequence):
+      #print(layer)
       last_tensor = layer(last_tensor)
+      #print(last_tensor.shape)
       if type(layer) == nn.AvgPool2d:
         last_tensor = last_tensor.to(torch.int32).to(torch.float)
       #if (type(layer) == nn.Conv2d) or (type(layer) == snntorch.Leaky):
@@ -175,7 +227,7 @@ def manual_forward_pass(npx_module:NpxModule, data, tv_bin_path:Path=None, raw_i
         else :
           print(last_tensor[0][0:20])
         print(last_tensor.shape)
-
+    #print('last Leaky mem', npx_module.layer_sequence[-1].mem)
     spk_rec.append(last_tensor)
     #if step == 0: break
   if tv_bin_path:
@@ -218,7 +270,8 @@ if __name__ == '__main__':
     app_cfg_path = Path(app_cfg)
     #print(app_cfg_path)
     npx_define = NpxDefine(app_cfg_path=app_cfg_path, output_path=output_path)
-    npx_data_manager = NpxDataManager(dataset_name=npx_define.dataset_name,
+    app_pre_path = app_cfg_path.parent / f'{app_cfg_path.stem}.pre'
+    npx_data_manager = NpxDataManager(app_pre_path=app_pre_path,
     dataset_path=dataset_path, num_kfold=num_kfold, resize=npx_define.input_resize)
     if 'testvector' in cmd_list:
       generate_testvector(npx_define=npx_define, npx_data_manager=npx_data_manager, num_sample=num_sample)

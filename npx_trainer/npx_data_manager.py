@@ -1,11 +1,16 @@
 from pathlib import *
+import numpy as np
+from enum import Enum
 
 import torch
 from torch.utils.data.dataloader import DataLoader
 from torchvision import datasets, transforms
 
+import tonic
+
 from collections import Counter
 from requests import get
+from npx_text_parser import *
 
 def download(url:str, root:Path,file_name = None):
   if not file_name:
@@ -16,9 +21,26 @@ def download(url:str, root:Path,file_name = None):
           response = get(url)
           file.write(response.content)
 
+def intstr_to_tuple(intstr):
+  intstr_list = intstr.split(',')
+  int_list = []
+  for i in range(len(intstr_list)):
+    int_list.append(int(intstr_list[i]))
+  return tuple(int_list)
+
+class DataFormat(Enum):
+  MATRIX3D = 1
+  MATRIX4D = 2
+  DVS = 3
+
 class NpxDataManager():
-  def __init__(self, dataset_name:str, dataset_path:Path, num_kfold:int=None, resize:tuple=None):
-    self.name = dataset_name
+  def __init__(self, app_pre_path:Path, dataset_path:Path, num_kfold:int=None, resize:tuple=None):
+    self.app_pre_path = app_pre_path
+    if self.app_pre_path and self.app_pre_path.is_file():
+      self.text_parser = NpxTextParser()
+      self.text_parser.parse_file(self.app_pre_path)
+
+    self.name = self.text_parser.global_info['section']
     self.download_path = dataset_path / self.name
     if num_kfold==None:
       num_kfold = 5
@@ -27,35 +49,44 @@ class NpxDataManager():
     self.fair_distribution = False
 
     self.download_path.mkdir(parents=True, exist_ok=True)
-    
+
     if self.name=='mnist':
-      if resize==None:
-        resize=(14,14)
+      self.raw_data_format = DataFormat.MATRIX3D
+      self.data_format = DataFormat.MATRIX3D
+      self.spike_encoding = NpxTextParser.find_option_value(self.text_parser.global_info, 'spike_encoding', 'direct')
+      value = NpxTextParser.find_option_value(self.text_parser.global_info, 'resize', '14,14')
+      self.resize = intstr_to_tuple(value)
       transform = transforms.Compose([
         #transforms.Resize((14, 14)),
-        transforms.Resize(resize),
+        #transforms.Resize(self.resize),
         transforms.Grayscale(),
         transforms.ToTensor(),
         transforms.Normalize((0,), (1,))])
       dataset_train_and_val = datasets.MNIST(root=self.download_path, train=True, download=True, transform=transform)
       self.dataset_test = datasets.MNIST(root=self.download_path, train=False, download=True, transform=transform)
     elif self.name=='kmnist':
-      if resize==None:
-        resize=(14,14)
+      self.raw_data_format = DataFormat.MATRIX3D
+      self.data_format = DataFormat.MATRIX3D
+      self.spike_encoding = NpxTextParser.find_option_value(self.text_parser.global_info, 'spike_encoding', 'direct')
+      value = NpxTextParser.find_option_value(self.text_parser.global_info, 'resize', '14,14')
+      self.resize = intstr_to_tuple(value)
       transform = transforms.Compose([
         #transforms.Resize((14, 14)),
-        transforms.Resize(resize),
+        transforms.Resize(self.resize),
         transforms.Grayscale(),
         transforms.ToTensor(),
         transforms.Normalize((0,), (1,))])
       dataset_train_and_val = datasets.KMNIST(root=self.download_path, train=True, download=True, transform=transform)
       self.dataset_test = datasets.KMNIST(root=self.download_path, train=False, download=True, transform=transform)
     elif self.name=='fmnist':
-      if resize==None:
-        resize=(14,14)
+      self.raw_data_format = DataFormat.MATRIX3D
+      self.data_format = DataFormat.MATRIX3D
+      self.spike_encoding = NpxTextParser.find_option_value(self.text_parser.global_info, 'spike_encoding', 'direct')
+      value = NpxTextParser.find_option_value(self.text_parser.global_info, 'resize', '14,14')
+      self.resize = intstr_to_tuple(value)
       transform = transforms.Compose([
         #transforms.Resize((14, 14)),
-        transforms.Resize(resize),
+        transforms.Resize(self.resize),
         transforms.Grayscale(),
         transforms.ToTensor(),
         transforms.Normalize((0,), (1,))])
@@ -67,25 +98,48 @@ class NpxDataManager():
       dataset_train_and_val = datasets.FashionMNIST(root=self.download_path, train=True, download=True, transform=transform)
       self.dataset_test = datasets.FashionMNIST(root=self.download_path, train=False, download=True, transform=transform)
     elif self.name=='cifar10':
-      if resize==None:
-        resize=(32,32)
+      self.raw_data_format = DataFormat.MATRIX3D
+      self.data_format = DataFormat.MATRIX3D
+      self.spike_encoding = NpxTextParser.find_option_value(self.text_parser.global_info, 'spike_encoding', 'direct')
+      value = NpxTextParser.find_option_value(self.text_parser.global_info, 'resize', '32,32')
+      self.resize = intstr_to_tuple(value)
       transform = transforms.Compose([
         #transforms.Resize((32, 32)),
-        transforms.Resize(resize),
+        transforms.Resize(self.resize),
         transforms.ToTensor(),
         transforms.Normalize((0, 0, 0), (1, 1, 1))])
       dataset_train_and_val = datasets.CIFAR10(root=self.download_path, train=True, download=True, transform=transform)
       self.dataset_test = datasets.CIFAR10(root=self.download_path, train=False, download=True, transform=transform)
     elif self.name=='gtsrb':
-      if resize==None:
-        resize=(32,32)
+      self.raw_data_format = DataFormat.MATRIX3D
+      self.data_format = DataFormat.MATRIX3D
+      self.spike_encoding = NpxTextParser.find_option_value(self.text_parser.global_info, 'spike_encoding', 'direct')
+      value = NpxTextParser.find_option_value(self.text_parser.global_info, 'resize', '32,32')
+      self.resize = intstr_to_tuple(value)
       transform = transforms.Compose([
         #transforms.Resize((32, 32)),
-        transforms.Resize(resize),
+        transforms.Resize(self.resize),
         transforms.ToTensor(),
         transforms.Normalize((0, 0, 0), (1, 1, 1))])
       dataset_train_and_val = datasets.GTSRB(root=self.download_path, split='train', download=True, transform=transform)
       self.dataset_test = datasets.GTSRB(root=self.download_path, split='test', download=True, transform=transform)
+    elif self.name=='dvsgesture':
+      self.raw_data_format = DataFormat.DVS
+      self.data_format = DataFormat.MATRIX4D
+      self.sensor_size = tonic.datasets.DVSGesture.sensor_size
+      #denoise_transform = tonic.transforms.Denoise(filter_time=10000)
+      value = NpxTextParser.find_option_value(self.text_parser.global_info, 'resize', '128,128')
+      self.resize = intstr_to_tuple(value)
+      self.resize = (2,) + self.resize
+      self.timesteps = NpxTextParser.find_option_value(self.text_parser.global_info, 'timesteps', 25)
+      frame_transform = tonic.transforms.ToFrame(sensor_size=self.sensor_size, n_time_bins=self.timesteps)
+      all_transform = transforms.Compose([
+        frame_transform])
+      train_set = tonic.datasets.DVSGesture(save_to=self.download_path, transform=all_transform, train=True)
+      test_set = tonic.datasets.DVSGesture(save_to=self.download_path, transform=all_transform, train=False)
+      dataset_train_and_val = tonic.DiskCachedDataset(train_set, cache_path=self.download_path/'cache/dvsgesture/train')
+      self.dataset_test = tonic.DiskCachedDataset(test_set, cache_path=self.download_path/'cache/dvsgesture/test')
+      self.dataset_test_raw = tonic.datasets.DVSGesture(save_to=self.download_path, train=False)
     else:
       assert 0, dataset_name
     
@@ -130,9 +184,13 @@ class NpxDataManager():
         pass
       else:
         self.dataset_train += dataset_chunk
-    self.loader_list = (DataLoader(self.dataset_train, batch_size=batch_size, shuffle=True, drop_last=True),
-                        DataLoader(self.dataset_val, batch_size=batch_size, shuffle=True, drop_last=True),
-                        DataLoader(self.dataset_test, batch_size=batch_size, shuffle=True, drop_last=True))
+    if self.name=='dvsgesture':
+      collate_fn = tonic.collation.PadTensors(batch_first=False)
+    else:
+      collate_fn = None
+    self.loader_list = (DataLoader(self.dataset_train, batch_size=batch_size, shuffle=True, drop_last=True, collate_fn=collate_fn),
+                        DataLoader(self.dataset_val, batch_size=batch_size, shuffle=True, drop_last=True, collate_fn=collate_fn),
+                        DataLoader(self.dataset_test, batch_size=batch_size, shuffle=True, drop_last=True, collate_fn=collate_fn))
 
   @property
   def train_loader(self):

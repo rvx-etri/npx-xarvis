@@ -13,7 +13,7 @@ endif
 
 #NUM_EPOCH=10
 #NUM_REPEAT=1
-#NUM_SAMPLE=1
+NUM_SAMPLE=1
 
 #########
 ## RAW ##

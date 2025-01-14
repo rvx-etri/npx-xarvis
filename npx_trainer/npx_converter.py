@@ -67,7 +67,7 @@ def write_parameter_to_binaryfile(npx_module:NpxModule, bin_path:Path):
         threshold = layer.threshold
         write_data_aligned_by_4bytes(bin_file, threshold, torch.int32)
 
-def write_data_aligned_by_4bytes(file_io, data, data_type):
+def write_data_aligned_by_4bytes(file_io, data:torch.Tensor, data_type:torch.dtype):
   data = data.to('cpu').to(data_type).numpy().reshape(-1)
   #data = data.to('cpu').round().to(data_type).numpy().reshape(-1)
   lenth = data.shape[0]

@@ -1,6 +1,7 @@
 from pathlib import *
 from collections import namedtuple
 from npx_text_parser import *
+from npx_data_manager import DataFormat
 
 TestResult = namedtuple('TestResult', ['acc', 'total', 'total_time', 'model_size'])
 RecordResult = namedtuple('RecordResult', ['dataset_name', 'train_neuron_str', 'test_neuron_str', 'repeat_index_str','epoch_index_str', 'val_accuracy_str', 'test_accuracy_str'])
@@ -169,10 +170,15 @@ class NpxDefine:
     filename += '.bin'
     return self.riscv_dir_path / filename
 
-  def get_riscv_sample_bin_path(self, i:int, is_spike:bool):
+  def get_riscv_sample_bin_path(self, i:int, data_format:DataFormat):
     filename = self.app_name
     filename += '_sample'
-    filename += '_spike' if is_spike else '_value'
+    if data_format == DataFormat.MATRIX3D:
+      filename += '_matrix3d'
+    elif data_format == DataFormat.MATRIX4D:
+      filename += '_matrix4d'
+    elif data_format == DataFormat.DVS:
+      filename += '_dvs'
     filename += f'_{i:03}'
     filename += '.bin'
     return self.riscv_dir_path / filename
