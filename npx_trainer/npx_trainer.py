@@ -74,9 +74,13 @@ class NpxTrainer():
   
     for batch_idx, (data, target) in enumerate(tqdm(npx_data_manager.train_loader)):
       data, target = data.to(self.device), target.to(self.device)
-      if npx_data_manager.resize[-2:] != data.shape[-2:]:
-        data = nn.functional.interpolate(data, size=npx_data_manager.resize)
-        #data = nn.functional.interpolate(data, size=npx_data_manager.resize, mode='bilinear')
+      if npx_module.input_size != data.shape[-2:]:
+        if data.dim() == 5:
+          size = (data.shape[-3],) + npx_module.input_size
+        else:
+          size = npx_module.input_size
+        data = nn.functional.interpolate(data, size=size)
+        #data = nn.functional.interpolate(data, size=size, mode='bilinear')
 
       spk_rec = self.forward_pass(npx_module, data, npx_data_manager.data_format)
       loss_val = self.loss_function(spk_rec, target)
@@ -103,9 +107,13 @@ class NpxTrainer():
     with torch.no_grad():
       for data, target in tqdm(npx_data_manager.test_loader):
         data, target = data.to(self.device), target.to(self.device)
-        if npx_data_manager.resize[-2:] != data.shape[-2:]:
-          data = nn.functional.interpolate(data, size=npx_data_manager.resize)
-          #data = nn.functional.interpolate(data, size=npx_data_manager.resize, mode='bilinear')
+        if npx_module.input_size != data.shape[-2:]:
+          if data.dim() == 5:
+            size = (data.shape[-3],) + npx_module.input_size
+          else:
+            size = npx_module.input_size
+          data = nn.functional.interpolate(data, size=size)
+          #data = nn.functional.interpolate(data, size=size, mode='bilinear')
         cur = time.time()
         spk_rec = self.forward_pass(npx_module, data, npx_data_manager.data_format)
 
@@ -217,12 +225,12 @@ if __name__ == '__main__':
   for app_cfg in app_cfg_list:
     app_cfg_path = Path(app_cfg)
     npx_define = NpxDefine(app_cfg_path=app_cfg_path, output_path=output_path)
-    app_pre_path = app_cfg_path.parent / f'{app_cfg_path.stem}.pre'
+    app_pre_path = npx_define.get_riscv_preprocess_path()
     num_epochs = npx_define.epoch
     num_kfold = npx_define.kfold
     num_repeat = npx_define.repeat
     npx_data_manager = NpxDataManager(app_pre_path=app_pre_path, dataset_path=dataset_path, 
-                                      num_kfold=num_kfold, resize=npx_define.input_resize)
+                                      num_kfold=num_kfold)
     if 'reset' in cmd_list:
       if npx_define.app_dir_path.is_dir():
         shutil.rmtree(npx_define.app_dir_path)

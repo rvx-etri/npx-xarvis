@@ -50,13 +50,18 @@ class NpxModule(nn.Module):
       self.text_parser.parse_file(self.app_cfg_path)
             
       info_list = (
-        ('dataset', 'mnist'),('timesteps', 32),#('neuron_type', 'q8ssf'),
-        ('input_resize', '14,14'),('output_classes', 10),
-        ('spike_encoding', 'direct')
+        ('dataset', 'mnist_dataset'),('timesteps', 32),#('neuron_type', 'q8ssf'),
+        ('input_channels', 1),('input_size', '14,14'),('output_classes', 10)
         )
       for var_name, default_value in info_list:
         value = NpxTextParser.find_option_value(self.text_parser.global_info, var_name, default_value)
         setattr(self, var_name, value)
+
+      self.input_size = self.input_size.split(',')
+      for i in range(len(self.input_size)):
+        self.input_size[i] = int(self.input_size[i])
+      self.input_size = tuple(self.input_size)
+
       #print(NpxTextParser.find_option_value(self.text_parser.global_info, 'mapped_fvalue', self.neuron_type.mapped_fvalue))
       self.neuron_type.update_mapped_fvalue(NpxTextParser.find_option_value(self.text_parser.global_info, 'mapped_fvalue', self.neuron_type.mapped_fvalue))
       
@@ -97,6 +102,18 @@ class NpxModule(nn.Module):
   def backup_cfg(self, npx_define:NpxDefine, epoch_index:int):
     self.backup_raw_cfg(npx_define.get_parameter_raw_cfg_path())
     self.backup_epoch_cfg(npx_define.get_parameter_epoch_cfg_path(epoch_index),True)
+
+  def backup_riscv_net_cfg(self, npx_define:NpxDefine, overwrite:bool=False):
+    npx_define.riscv_dir_path.mkdir(parents=True, exist_ok=True)
+    cfg_path = npx_define.get_riscv_app_net_cfg_path()
+    assert overwrite or (not cfg_path.is_file()), cfg_path
+    app_cfg_generator = npx_app_cfg_generator.NpxAppCfgGenerator()
+    app_cfg_generator.import_module(self)
+    app_cfg_generator.text_parser.del_option(0, 'mapped_fvalue')
+    app_cfg_generator.text_parser.del_option(0, 'epoch')
+    app_cfg_generator.text_parser.del_option(0, 'kfold')
+    app_cfg_generator.text_parser.del_option(0, 'repeat')
+    app_cfg_generator.write_file(cfg_path)
 
   def forward(self, x:Tensor):
     last_tensor = x

@@ -19,19 +19,19 @@ class NpxDefine:
     info_list = (
         ('dataset', 'mnist'),('timesteps', 32),('neuron_type', ''),
         ('train_neuron_str', ''),('test_neuron_str', ''),
-        ('input_resize', '14,14'),('output_classes', 10),
-        ('spike_encoding', 'direct'),('epoch',10),
-        ('kfold',5),('repeat',1)
+        ('input_channels', 3),('input_size', '14,14'),
+        ('output_classes', 10),
+        ('epoch',10),('kfold',5),('repeat',1)
         )
     for var_name, default_value in info_list:
       value = NpxTextParser.find_option_value(self.text_parser.global_info, var_name, default_value)
       setattr(self, var_name, value)
       self.__dict__[var_name] = value
 
-    self.input_resize = self.input_resize.split(',')
-    for i in range(len(self.input_resize)):
-      self.input_resize[i] = int(self.input_resize[i])
-    self.input_resize = tuple(self.input_resize)
+    self.input_size = self.input_size.split(',')
+    for i in range(len(self.input_size)):
+      self.input_size[i] = int(self.input_size[i])
+    self.input_size = tuple(self.input_size)
     
     if self.neuron_type:
       self.train_neuron_str = self.neuron_type
@@ -197,7 +197,17 @@ class NpxDefine:
     filename += '.text'
     return self.riscv_dir_path / filename
 
-  def get_operator_info_path(self):
-    return self.riscv_dir_path / f'{self.app_cfg_path.stem}.opi'
-    #return self.riscv_dir_path / f'{self.app_cfg_path.stem}_op_info{self.app_cfg_path.suffix}'
+  def get_riscv_app_net_cfg_path(self):
+    filename = self.app_name
+    filename += '_network.cfg'
+    return self.riscv_dir_path / filename
 
+  def get_riscv_operator_info_path(self):
+    filename = self.app_name
+    filename += '_operator.cfg'
+    return self.riscv_dir_path / filename
+
+  def get_riscv_preprocess_path(self):
+    filename = self.app_name
+    filename += '_preprocess.cfg'
+    return self.app_cfg_path.parent / filename

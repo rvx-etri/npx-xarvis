@@ -42,7 +42,8 @@ opi:
 #########
 
 APP_CFG_DIR=${CURDIR}/app
-APP_CFG_LIST=$(wildcard ${APP_CFG_DIR}/*.cfg)
+ALL_CFG_LIST=$(wildcard ${APP_CFG_DIR}/*.cfg)
+APP_CFG_LIST = $(filter-out %_preprocess.cfg, $(ALL_CFG_LIST))
 APP_CFG_NAME_LIST=$(basename $(notdir ${APP_CFG_LIST}))
 
 app_list:

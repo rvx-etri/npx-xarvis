@@ -84,3 +84,10 @@ class NpxTextParser():
     else: 
       print(f'section_id: {section_id} is out of i range for section list. ( < {len(self.section_list)}])')
       assert 0, section_id
+
+  def del_option(self, section_id:int, key:str):
+    if (section_id < len(self.section_list)) & (section_id >= -len(self.section_list)):
+      self.section_list[section_id].pop(key, None)
+    else: 
+      print(f'section_id: {section_id} is out of i range for section list. ( < {len(self.section_list)}])')
+      assert 0, section_id

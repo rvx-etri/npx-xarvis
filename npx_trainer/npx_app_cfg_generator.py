@@ -176,7 +176,7 @@ class NpxAppCfgGenerator():
       if type(layer)==snntorch.Leaky:
         self.text_parser.add_option(i+1, 'beta', float(layer.beta))
         self.text_parser.add_option(i+1, 'reset_mechanism', layer.reset_mechanism)
-        self.text_parser.add_option(i+1, 'threshold', float(layer.threshold))
+        #self.text_parser.add_option(i+1, 'threshold', float(layer.threshold))
         self.text_parser.add_option(i+1, 'learn_threshold', npx_module.does_neuron_learn_threshold(layer))
 
   def __str__(self) -> str:

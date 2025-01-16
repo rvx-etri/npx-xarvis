@@ -63,4 +63,7 @@ rvx_python_config.mh
 result
 generated_cfg
 app
-!mnist_app.cfg
+!app/mnist_app.cfg
+!app/mnist_app_preprocess.cfg
+!app/dvs_gesture.cfg
+!app/dvs_gesture_preprocess.cfg

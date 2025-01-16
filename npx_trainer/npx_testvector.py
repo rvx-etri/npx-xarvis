@@ -70,28 +70,24 @@ def save_sample(npx_define:NpxDefine, data:torch.Tensor, target:torch.Tensor, i:
 def _generate_testvector_for_dvs_input(npx_module:NpxModule, npx_define:NpxDefine, npx_data_manager:NpxDataManager, num_sample:int):
   sample_list = get_sample(dataset=npx_data_manager.dataset_test_raw, num_sample=num_sample)
 
-  #print('npx_define.timesteps',npx_define.timesteps)
   for i, (data, target) in enumerate(sample_list):
-    #print('num events:', len(data))
     frames = trasform_to_frame(data, npx_data_manager.sensor_size, npx_data_manager.timesteps, use_tonic=False)
     target = torch.Tensor([target]).to(torch.int32).numpy()
 
     # save dvs data sample
-    coverted_data = convert_dvs_dtype(data)
-    save_sample(npx_define, coverted_data, target, i, DataFormat.DVS, torch.int32)
+    dvs_data = convert_dvs_dtype(data)
+    save_sample(npx_define, dvs_data, target, i, DataFormat.DVS, torch.int32)
 
     # save frames data sample
     #save_sample(npx_define, frames, target, i, DataFormat.MATRIX4D, torch.uint8)
 
-    print(frames[0])
     # resize
-    print(npx_data_manager.resize, frames.shape[-2:])
-    if npx_data_manager.resize[-2:] != frames.shape[-2:]:
-      resized_frames = nn.functional.interpolate(frames, size=npx_data_manager.resize)
-      #frames = nn.functional.interpolate(frames, size=npx_data_manager.resize, mode='bilinear')
+    if npx_module.input_size != frames.shape[-2:]:
+      size = (frames.shape[-3],) + npx_module.input_size
+      resized_frames = nn.functional.interpolate(frames, size=size)
+      #frames = nn.functional.interpolate(frames, size=npx_module.input_size, mode='bilinear')
     else:
       resized_frames = frames
-    print(resized_frames[0])
     save_sample(npx_define, resized_frames, target, i, DataFormat.MATRIX4D, torch.uint8)
 
     # save testvector
@@ -106,10 +102,9 @@ def _generate_testvector_for_dvs_input(npx_module:NpxModule, npx_define:NpxDefin
       print('class id from inference: ', int(inference_class_id))
       print('class id from dataset: ', int(target[0]))
 
-def _generate_testvector_for_matrix_2d_input(npx_module:NpxModule, npx_define:NpxDefine, npx_data_manager:NpxDataManager, num_sample:int):
+def _generate_testvector_for_matrix3d_input(npx_module:NpxModule, npx_define:NpxDefine, npx_data_manager:NpxDataManager, num_sample:int):
   sample_list = get_sample(dataset=npx_data_manager.dataset_test, num_sample=num_sample)
 
-  #print('npx_define.timesteps',npx_define.timesteps)
   spike_input = False
   for i, (data, target) in enumerate(sample_list):
     data = torch.unsqueeze(data, dim=1).to(device)
@@ -122,15 +117,15 @@ def _generate_testvector_for_matrix_2d_input(npx_module:NpxModule, npx_define:Np
 
     num_steps = npx_define.timesteps
     if spike_input:
-      if npx_data_manager.resize[-2:] != data.shape[-2:]:
-        resized_data = nn.functional.interpolate(data, size=npx_data_manager.resize)
+      if npx_module.input_size != data.shape[-2:]:
+        resized_data = nn.functional.interpolate(data, size=npx_module.input_size)
       else:
         resized_data = data
       input_data = spikegen.rate(resized_data, num_steps=num_steps)
       save_sample(npx_define, input_data, target, i, DataFormat.MATRIX4D, torch.int8)
     else :
-      if npx_data_manager.resize[-2:] != raw_data.shape[-2:]:
-        resized_data = nn.functional.interpolate(raw_data, size=npx_data_manager.resize)
+      if npx_module.input_size != raw_data.shape[-2:]:
+        resized_data = nn.functional.interpolate(raw_data, size=npx_module.input_size)
       else:
         resized_data = data
       input_data = resized_data.repeat(tuple([num_steps] + torch.ones(len(raw_data.size()), dtype=int).tolist()))
@@ -157,8 +152,10 @@ def generate_testvector(npx_define:NpxDefine, npx_data_manager:NpxDataManager, n
   assert riscv_parameter_path.exists(), riscv_parameter_path
   npx_module.load_state_dict(torch.load(riscv_parameter_path, weights_only=False)['npx_module'])
 
+  npx_module.backup_riscv_net_cfg(npx_define, True)
+
   if npx_data_manager.raw_data_format == DataFormat.MATRIX3D:
-    _generate_testvector_for_matrix_2d_input(npx_module, npx_define, npx_data_manager, num_sample)
+    _generate_testvector_for_matrix3d_input(npx_module, npx_define, npx_data_manager, num_sample)
   if npx_data_manager.raw_data_format == DataFormat.DVS:
     _generate_testvector_for_dvs_input(npx_module, npx_define, npx_data_manager, num_sample)
 
@@ -180,7 +177,6 @@ def manual_forward_pass(npx_module:NpxModule, data, tv_bin_path:Path=None):
   if tv_bin_path:
     tv_file = open(tv_bin_path, 'wb')
     tv_text_path = tv_bin_path.parent / f'{tv_bin_path.stem}.txt'
-    print(tv_text_path)
     line_list = []
 
   num_steps = npx_module.timesteps
@@ -190,13 +186,9 @@ def manual_forward_pass(npx_module:NpxModule, data, tv_bin_path:Path=None):
     cmp_tensor = data[step].to('cpu')
 
     for i, layer in enumerate(npx_module.layer_sequence):
-      #print(layer)
       last_tensor = layer(last_tensor)
-      #print(last_tensor.shape)
       if type(layer) == nn.AvgPool2d:
         last_tensor = last_tensor.to(torch.int32).to(torch.float)
-      #if (type(layer) == nn.Conv2d) or (type(layer) == snntorch.Leaky):
-      #  last_tensor = last_tensor.round()
 
       if tv_bin_path:
         if type(layer)==snntorch.Leaky or (prev_layer_type==snntorch.Leaky and type(layer)==nn.Flatten):
@@ -229,7 +221,6 @@ def manual_forward_pass(npx_module:NpxModule, data, tv_bin_path:Path=None):
         print(last_tensor.shape)
     #print('last Leaky mem', npx_module.layer_sequence[-1].mem)
     spk_rec.append(last_tensor)
-    #if step == 0: break
   if tv_bin_path:
     tv_file.close()
     tv_text_path.write_text('\n'.join(line_list))
@@ -270,9 +261,9 @@ if __name__ == '__main__':
     app_cfg_path = Path(app_cfg)
     #print(app_cfg_path)
     npx_define = NpxDefine(app_cfg_path=app_cfg_path, output_path=output_path)
-    app_pre_path = app_cfg_path.parent / f'{app_cfg_path.stem}.pre'
+    app_pre_path = npx_define.get_riscv_preprocess_path()
     npx_data_manager = NpxDataManager(app_pre_path=app_pre_path,
-    dataset_path=dataset_path, num_kfold=num_kfold, resize=npx_define.input_resize)
+    dataset_path=dataset_path, num_kfold=num_kfold)
     if 'testvector' in cmd_list:
       generate_testvector(npx_define=npx_define, npx_data_manager=npx_data_manager, num_sample=num_sample)
     else:

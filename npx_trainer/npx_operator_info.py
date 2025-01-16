@@ -48,7 +48,7 @@ def gen_operator_info(npx_define:NpxDefine, hw_info_path:Path):
   #print(str(npx_define.text_parser))
   #print(str(operator_info))
 
-  operator_info_path = npx_define.get_operator_info_path()
+  operator_info_path = npx_define.get_riscv_operator_info_path()
   #print(operator_info_path)
   operator_info_path.write_text(str(operator_info))
   
