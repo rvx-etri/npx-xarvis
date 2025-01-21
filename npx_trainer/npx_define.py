@@ -1,37 +1,46 @@
 from pathlib import *
 from collections import namedtuple
-from npx_text_parser import *
-from npx_data_manager import DataFormat
+from enum import Enum
+
+from npx_cfg_parser import *
 
 TestResult = namedtuple('TestResult', ['acc', 'total', 'total_time', 'model_size'])
 RecordResult = namedtuple('RecordResult', ['dataset_name', 'train_neuron_str', 'test_neuron_str', 'repeat_index_str','epoch_index_str', 'val_accuracy_str', 'test_accuracy_str'])
 #CfgFilename = namedtuple('CfgFilename', ['prefix', 'repeat_index', 'epoch_index', 'value_type'])
 
+class DataFormat(Enum):
+  MATRIX3D = 1
+  MATRIX4D = 2
+  DVS = 3
+  
 class NpxDefine:
   def __init__(self, app_cfg_path:Path, output_path:Path):
     self.app_cfg_path = app_cfg_path
     self.output_path = output_path
 
-    self.text_parser = NpxTextParser()
-    self.text_parser.parse_file(self.app_cfg_path)
-    #text_parser.write_file(self.app_cfg_path)
+    self.cfg_parser = NpxCfgParser()
+    self.cfg_parser.parse_file(self.app_cfg_path)
+    #cfg_parser.write_file(self.app_cfg_path)
     
-    info_list = (
-        ('dataset', 'mnist'),('timesteps', 32),('neuron_type', ''),
+    preprocess_default_info_list = (
+        ('dataset', 'mnist_dataset'),('timesteps', 32)
+        )
+    for var_name, default_value in preprocess_default_info_list:
+      value = self.cfg_parser.preprocess_info.setdefault(var_name, default_value)
+      setattr(self, var_name, value)
+      self.__dict__[var_name] = value
+    
+    train_default_info_list = (
+        ('neuron_type', ''),
         ('train_neuron_str', ''),('test_neuron_str', ''),
-        ('input_channels', 3),('input_size', '14,14'),
+        ('input_channels', 3),('input_size', (14,14)),
         ('output_classes', 10),
         ('epoch',10),('kfold',5),('repeat',1)
         )
-    for var_name, default_value in info_list:
-      value = NpxTextParser.find_option_value(self.text_parser.global_info, var_name, default_value)
+    for var_name, default_value in train_default_info_list:
+      value = self.cfg_parser.train_info.setdefault(var_name, default_value)
       setattr(self, var_name, value)
       self.__dict__[var_name] = value
-
-    self.input_size = self.input_size.split(',')
-    for i in range(len(self.input_size)):
-      self.input_size[i] = int(self.input_size[i])
-    self.input_size = tuple(self.input_size)
     
     if self.neuron_type:
       self.train_neuron_str = self.neuron_type
@@ -135,6 +144,9 @@ class NpxDefine:
   def get_repeat_index_from_report_path(path:Path):
     return int(path.stem.split('_')[-2][1:])
   
+  def get_riscv_network_path(self):
+    return self.riscv_dir_path / f'{self.app_cfg_path.stem}_network{self.app_cfg_path.suffix}'
+  
   def get_riscv_parameter_path(self, is_quantized:bool):
     filename = self.app_name
     filename += '_parameter'
@@ -196,18 +208,3 @@ class NpxDefine:
     filename += f'_{i:03}'
     filename += '.text'
     return self.riscv_dir_path / filename
-
-  def get_riscv_app_net_cfg_path(self):
-    filename = self.app_name
-    filename += '_network.cfg'
-    return self.riscv_dir_path / filename
-
-  def get_riscv_operator_info_path(self):
-    filename = self.app_name
-    filename += '_operator.cfg'
-    return self.riscv_dir_path / filename
-
-  def get_riscv_preprocess_path(self):
-    filename = self.app_name
-    filename += '_preprocess.cfg'
-    return self.app_cfg_path.parent / filename

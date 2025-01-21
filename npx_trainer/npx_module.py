@@ -15,7 +15,7 @@ from snntorch import spikegen
 
 from npx_define import *
 from npx_neuron_type import *
-from npx_text_parser import *
+from npx_cfg_parser import *
 
 import npx_app_cfg_generator
 
@@ -46,27 +46,24 @@ class NpxModule(nn.Module):
     self.neuron_type = self.neuron_type_class(neuron_type_str) if neuron_type_str else None
     self.app_cfg_path = app_cfg_path
     if self.app_cfg_path and self.app_cfg_path.is_file():
-      self.text_parser = NpxTextParser()
-      self.text_parser.parse_file(self.app_cfg_path)
+      self.cfg_parser = NpxCfgParser()
+      self.cfg_parser.parse_file(self.app_cfg_path)
             
+      '''
       info_list = (
         ('dataset', 'mnist_dataset'),('timesteps', 32),#('neuron_type', 'q8ssf'),
-        ('input_channels', 1),('input_size', '14,14'),('output_classes', 10)
+        ('input_channels', 1),('input_size', (14,14)),('output_classes', 10)
         )
       for var_name, default_value in info_list:
-        value = NpxTextParser.find_option_value(self.text_parser.global_info, var_name, default_value)
+        value = self.cfg_parser.train_info.setdefault(var_name, default_value)
         setattr(self, var_name, value)
+      '''
 
-      self.input_size = self.input_size.split(',')
-      for i in range(len(self.input_size)):
-        self.input_size[i] = int(self.input_size[i])
-      self.input_size = tuple(self.input_size)
-
-      #print(NpxTextParser.find_option_value(self.text_parser.global_info, 'mapped_fvalue', self.neuron_type.mapped_fvalue))
-      self.neuron_type.update_mapped_fvalue(NpxTextParser.find_option_value(self.text_parser.global_info, 'mapped_fvalue', self.neuron_type.mapped_fvalue))
+      #print(NpxCfgParser.find_option_value(self.cfg_parser.train_info, 'mapped_fvalue', self.neuron_type.mapped_fvalue))
+      self.neuron_type.update_mapped_fvalue(self.cfg_parser.train_info.setdefault('mapped_fvalue', self.neuron_type.mapped_fvalue))
       
       self.layer_sequence = []
-      self.gen_layer_sequence(self.text_parser.layer_info_list)
+      self.gen_layer_sequence(self.cfg_parser.layer_info_list)
       # print(net_option, layer_option_list)
     self.is_quantized = False
       
@@ -80,7 +77,15 @@ class NpxModule(nn.Module):
       
   @property
   def num_layer(self):
-    return len(self.text_parser.layer_info_list)
+    return len(self.cfg_parser.layer_info_list)
+  
+  @property
+  def input_size(self):
+    return self.cfg_parser.train_info['input_size']
+  
+  @property
+  def timesteps(self):
+    return self.cfg_parser.preprocess_info['timesteps']
 
   @property
   def can_learn_neural_threshold(self):
@@ -102,18 +107,6 @@ class NpxModule(nn.Module):
   def backup_cfg(self, npx_define:NpxDefine, epoch_index:int):
     self.backup_raw_cfg(npx_define.get_parameter_raw_cfg_path())
     self.backup_epoch_cfg(npx_define.get_parameter_epoch_cfg_path(epoch_index),True)
-
-  def backup_riscv_net_cfg(self, npx_define:NpxDefine, overwrite:bool=False):
-    npx_define.riscv_dir_path.mkdir(parents=True, exist_ok=True)
-    cfg_path = npx_define.get_riscv_app_net_cfg_path()
-    assert overwrite or (not cfg_path.is_file()), cfg_path
-    app_cfg_generator = npx_app_cfg_generator.NpxAppCfgGenerator()
-    app_cfg_generator.import_module(self)
-    app_cfg_generator.text_parser.del_option(0, 'mapped_fvalue')
-    app_cfg_generator.text_parser.del_option(0, 'epoch')
-    app_cfg_generator.text_parser.del_option(0, 'kfold')
-    app_cfg_generator.text_parser.del_option(0, 'repeat')
-    app_cfg_generator.write_file(cfg_path)
 
   def forward(self, x:Tensor):
     last_tensor = x
@@ -191,63 +184,59 @@ class NpxModule(nn.Module):
       #  neuron_output = True
       #else:
       #  neuron_output = False
+      
+      if layer_option.name == 'Linear':
+        # synapse option
+        in_features = layer_option.setdefault('in_features', 1)
+        out_features = layer_option.setdefault('out_features', 1)
+        # print(in_features, out_features)
+
+        layer = nn.Linear(in_features, out_features, bias=False)
+        
+      elif layer_option.name == 'Conv2d':
+        # synapse option
+        in_channels = layer_option.setdefault('in_channels', 1)
+        out_channels = layer_option.setdefault('out_channels', 1)
+        kernel_size = layer_option.setdefault('kernel_size', 3)
+        stride = layer_option.setdefault('stride', 1)
+        padding = layer_option.setdefault('padding', 0)
+        # print(in_channels, out_channels, kernel_size, stride, padding)
+
+        layer = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, bias=False)
+
+      elif layer_option.name == 'MaxPool2d':
+        kernel_size = layer_option.setdefault('kernel_size', 1)
+        stride = layer_option.setdefault('strie', kernel_size)
+        padding = layer_option.setdefault('padding', 0)
+
+        layer = nn.MaxPool2d(kernel_size, stride, padding)
           
-      if layer_option.get('section'):
-        if layer_option['section'] == 'Linear':
-          # synapse option
-          in_features = NpxTextParser.find_option_value(layer_option, 'in_features', 1)
-          out_features = NpxTextParser.find_option_value(layer_option, 'out_features', 1)
-          # print(in_features, out_features)
+      elif layer_option.name == 'AvgPool2d':
+        kernel_size = layer_option.setdefault('kernel_size', 1)
+        stride = layer_option.setdefault('strie', kernel_size)
+        padding = layer_option.setdefault('padding', 0)
 
-          layer = nn.Linear(in_features, out_features, bias=False)
-          
-        elif layer_option['section'] == 'Conv2d':
-          # synapse option
-          in_channels = NpxTextParser.find_option_value(layer_option, 'in_channels', 1)
-          out_channels = NpxTextParser.find_option_value(layer_option, 'out_channels', 1)
-          kernel_size = NpxTextParser.find_option_value(layer_option, 'kernel_size', 3)
-          stride = NpxTextParser.find_option_value(layer_option, 'stride', 1)
-          padding = NpxTextParser.find_option_value(layer_option, 'padding', 0)
-          # print(in_channels, out_channels, kernel_size, stride, padding)
+        layer = nn.AvgPool2d(kernel_size, stride, padding)
 
-          layer = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, bias=False)
+      elif layer_option.name == 'Flatten':
+        layer = nn.Flatten()
 
-        elif layer_option['section'] == 'MaxPool2d':
-          kernel_size = NpxTextParser.find_option_value(layer_option, 'kernel_size', 1)
-          stride = NpxTextParser.find_option_value(layer_option, 'strie', kernel_size)
-          padding = NpxTextParser.find_option_value(layer_option, 'padding', 0)
-
-          layer = nn.MaxPool2d(kernel_size, stride, padding)
-            
-        elif layer_option['section'] == 'AvgPool2d':
-          kernel_size = NpxTextParser.find_option_value(layer_option, 'kernel_size', 1)
-          stride = NpxTextParser.find_option_value(layer_option, 'strie', kernel_size)
-          padding = NpxTextParser.find_option_value(layer_option, 'padding', 0)
-
-          layer = nn.AvgPool2d(kernel_size, stride, padding)
-
-        elif layer_option['section'] == 'Flatten':
-          layer = nn.Flatten()
-
-        elif layer_option['section'] == 'Leaky':
-          #layer = self.make_neuron(layer_option, neuron_output)
-          layer = self.make_neuron(layer_option, False)
-        else:
-          assert 0
-
-        self.add_module('layer' + str(i), layer)
-        self.layer_sequence.append(layer)
-            
+      elif layer_option.name == 'Leaky':
+        #layer = self.make_neuron(layer_option, neuron_output)
+        layer = self.make_neuron(layer_option, False)
       else:
         assert 0
 
+      self.add_module('layer' + str(i), layer)
+      self.layer_sequence.append(layer)
+
   def make_neuron(self, layer_option, neuron_output):
-    beta = NpxTextParser.find_option_value(layer_option, 'beta', 1.0)
-    reset_mechanism = NpxTextParser.find_option_value(layer_option, 'reset_mechanism', 'zero')
-    threshold = NpxTextParser.find_option_value(layer_option, 'threshold', 1.0)
+    beta = layer_option.setdefault('beta', 1.0)
+    reset_mechanism = layer_option.setdefault('reset_mechanism', 'zero')
+    threshold = layer_option.setdefault('threshold', 1.0)
     #spike_grad = surrogate.fast_sigmoid(slope=25)
     if self.can_learn_neural_threshold:
-      learn_threshold = NpxTextParser.find_option_value(layer_option, 'learn_threshold', False)
+      learn_threshold = layer_option.setdefault('learn_threshold', False)
     else:
       learn_threshold = False
     neuron = snntorch.Leaky(beta=beta, threshold=threshold, init_hidden=True, #spike_grad=spike_grad,

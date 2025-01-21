@@ -26,9 +26,18 @@ def analyze_best_result(npx_define:NpxDefine):
 
 def copy_best_parameter(npx_define:NpxDefine, best_result:RecordResult):
   npx_define.riscv_dir_path.mkdir(parents=True, exist_ok=True)
+  # best info
   with open(npx_define.get_riscv_info_path(True),"wb") as f:
     pickle.dump(best_result, f)
   npx_define.get_riscv_info_text_path(True).write_text(str(best_result))
+  # cfg
+  best_cfg = npx_define.get_parameter_epoch_cfg_path(int(best_result.epoch_index_str))
+  assert best_cfg.is_file(), best_cfg
+  cfg_parser = NpxCfgParser(best_cfg)
+  cfg_parser.preprocess_info = None
+  riscv_cfg_path = npx_define.get_riscv_network_path()
+  cfg_parser.write_file(riscv_cfg_path)
+  # parameter
   best_parameter_path = npx_define.get_parameter_path(int(best_result.repeat_index_str),int(best_result.epoch_index_str),True)
   assert best_parameter_path.is_file(), best_parameter_path
   riscv_parameter_path = npx_define.get_riscv_parameter_path(True)

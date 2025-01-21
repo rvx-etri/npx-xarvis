@@ -22,17 +22,17 @@ class NpxAppCfgGenerator():
     npx_data_manager = NpxDataManager(dataset_name=self.dataset_name, dataset_path=dataset_path, num_kfold=5)
 
     # print(self.app_cfg_path)
-    self.text_parser = NpxTextParser()
-    self.text_parser.add_section('network')
-    self.text_parser.add_option(-1, 'dataset', self.dataset_name)
-    self.text_parser.add_option(-1, 'neuron_type', neuron_type_str)
-    self.text_parser.add_option(-1, 'height', npx_data_manager.input_size[1])
-    self.text_parser.add_option(-1, 'width', npx_data_manager.input_size[2])
-    self.text_parser.add_option(-1, 'channels', npx_data_manager.input_size[0])
-    self.text_parser.add_option(-1, 'timesteps', 32)
-    self.text_parser.add_option(-1, 'classes', npx_data_manager.num_classes)
+    self.cfg_parser = NpxCfgParser()
+    self.cfg_parser.add_section('network')
+    self.cfg_parser.add_option(-1, 'dataset', self.dataset_name)
+    self.cfg_parser.add_option(-1, 'neuron_type', neuron_type_str)
+    self.cfg_parser.add_option(-1, 'height', npx_data_manager.input_size[1])
+    self.cfg_parser.add_option(-1, 'width', npx_data_manager.input_size[2])
+    self.cfg_parser.add_option(-1, 'channels', npx_data_manager.input_size[0])
+    self.cfg_parser.add_option(-1, 'timesteps', 32)
+    self.cfg_parser.add_option(-1, 'classes', npx_data_manager.num_classes)
 
-    # print(self.text_parser.section_list)
+    # print(self.cfg_parser.layer_info_list)
 
     if self.app_name.startswith('mnist_l1f'):
       self.gen_fc_section(in_features=14*14, out_features=10, 
@@ -149,43 +149,43 @@ class NpxAppCfgGenerator():
 
   def gen_fc_section(self, in_features:int, out_features:int, 
                      input_type='spike', output_type='spike'):
-    self.text_parser.add_section('fc')
-    self.text_parser.add_option(-1, 'in_features', in_features)
-    self.text_parser.add_option(-1, 'out_features', out_features)
-    #self.text_parser.add_option(-1, 'input_type', input_type)
-    #self.text_parser.add_option(-1, 'output_type', output_type)
+    self.cfg_parser.add_section('fc')
+    self.cfg_parser.add_option(-1, 'in_features', in_features)
+    self.cfg_parser.add_option(-1, 'out_features', out_features)
+    #self.cfg_parser.add_option(-1, 'input_type', input_type)
+    #self.cfg_parser.add_option(-1, 'output_type', output_type)
 
   def gen_conv_section(self, in_channels:int, out_channels:int, 
                       kernel_size=3, stride=1, padding=0,
                       input_type='spike', output_type='spike'):
-    self.text_parser.add_section('conv')
-    self.text_parser.add_option(-1, 'in_channels', in_channels)
-    self.text_parser.add_option(-1, 'out_channels', out_channels)
-    self.text_parser.add_option(-1, 'kernel_size', kernel_size)
-    self.text_parser.add_option(-1, 'stride', stride)
-    self.text_parser.add_option(-1, 'padding', padding)
-    #self.text_parser.add_option(-1, 'input_type', input_type)
-    #self.text_parser.add_option(-1, 'output_type', output_type)
+    self.cfg_parser.add_section('conv')
+    self.cfg_parser.add_option(-1, 'in_channels', in_channels)
+    self.cfg_parser.add_option(-1, 'out_channels', out_channels)
+    self.cfg_parser.add_option(-1, 'kernel_size', kernel_size)
+    self.cfg_parser.add_option(-1, 'stride', stride)
+    self.cfg_parser.add_option(-1, 'padding', padding)
+    #self.cfg_parser.add_option(-1, 'input_type', input_type)
+    #self.cfg_parser.add_option(-1, 'output_type', output_type)
 
   def import_module(self, npx_module):
     self.app_name = npx_module.app_name
     self.neuron_type = npx_module.neuron_type
-    self.text_parser = copy.deepcopy(npx_module.text_parser)
-    self.text_parser.add_option(0, 'mapped_fvalue', self.neuron_type.mapped_fvalue)
+    self.cfg_parser = copy.deepcopy(npx_module.cfg_parser)
+    self.cfg_parser.train_info['mapped_fvalue'] = self.neuron_type.mapped_fvalue
     for i, layer in enumerate(npx_module.layer_sequence):
       if type(layer)==snntorch.Leaky:
-        self.text_parser.add_option(i+1, 'beta', float(layer.beta))
-        self.text_parser.add_option(i+1, 'reset_mechanism', layer.reset_mechanism)
-        #self.text_parser.add_option(i+1, 'threshold', float(layer.threshold))
-        self.text_parser.add_option(i+1, 'learn_threshold', npx_module.does_neuron_learn_threshold(layer))
+        self.cfg_parser.layer_info_list[i]['beta'] = float(layer.beta)
+        self.cfg_parser.layer_info_list[i]['reset_mechanism'] = layer.reset_mechanism
+        #self.cfg_parser.layer_info_list[i]['threshold', float(layer.threshold))
+        self.cfg_parser.layer_info_list[i]['learn_threshold'] = npx_module.does_neuron_learn_threshold(layer)
 
   def __str__(self) -> str:
-    assert self.text_parser
-    return str(self.text_parser)
+    assert self.cfg_parser
+    return str(self.cfg_parser)
   
   def __repr__(self) -> str:
-    assert self.text_parser
-    return repr(self.text_parser)
+    assert self.cfg_parser
+    return repr(self.cfg_parser)
   
   def write_file(self, path:Path):
     if path.is_dir():

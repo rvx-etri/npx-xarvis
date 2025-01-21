@@ -28,14 +28,11 @@ test:
 reset:
 	@${PYTHON3_CMD} ./npx_trainer.py -cfg $(CFG_FILE) -cmd reset -dataset ${DATASET_DIR} -o ${RESULT_DIR} -gpu ${GPU_ID}
 	
-riscv: train
+riscv:
 	@${PYTHON3_CMD} ./npx_converter.py -cfg $(CFG_FILE) -o ${RESULT_DIR}
 
-tv: riscv
+tv:
 	@${PYTHON3_CMD} ./npx_testvector.py -cfg $(CFG_FILE) -cmd testvector -dataset ${DATASET_DIR} -s ${NUM_SAMPLE} -o ${RESULT_DIR}
-
-opi:
-	@${PYTHON3_CMD} ./npx_operator_info.py -cfg $(CFG_FILE) -o ${RESULT_DIR} -hw_info ${HW_INFO_PATH}
 
 #########
 ## APP ##
@@ -74,10 +71,10 @@ check1:
 	@make train CFG_FILE=${TEST_APP_CFG_FILE}
 
 check2:
-	@make riscv CFG_FILE=${TEST_APP_CFG_FILE}
+	@make train riscv CFG_FILE=${TEST_APP_CFG_FILE}
 
 check3:
-	@make tv CFG_FILE=${TEST_APP_CFG_FILE} NUM_SAMPLE=${NUM_SAMPLE}
+	@make train riscv tv CFG_FILE=${TEST_APP_CFG_FILE} NUM_SAMPLE=${NUM_SAMPLE}
 
 ####################
 ## PREDEFINED APP ##

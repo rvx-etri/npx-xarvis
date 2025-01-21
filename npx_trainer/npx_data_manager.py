@@ -1,6 +1,5 @@
 from pathlib import *
 import numpy as np
-from enum import Enum
 
 import torch
 from torch.utils.data.dataloader import DataLoader
@@ -10,7 +9,8 @@ import tonic
 
 from collections import Counter
 from requests import get
-from npx_text_parser import *
+from npx_cfg_parser import *
+from npx_define import *
 
 def download(url:str, root:Path,file_name = None):
   if not file_name:
@@ -28,19 +28,12 @@ def intstr_to_tuple(intstr):
     int_list.append(int(intstr_list[i]))
   return tuple(int_list)
 
-class DataFormat(Enum):
-  MATRIX3D = 1
-  MATRIX4D = 2
-  DVS = 3
-
 class NpxDataManager():
-  def __init__(self, app_pre_path:Path, dataset_path:Path, num_kfold:int=None):
-    self.app_pre_path = app_pre_path
-    if self.app_pre_path and self.app_pre_path.is_file():
-      self.text_parser = NpxTextParser()
-      self.text_parser.parse_file(self.app_pre_path)
+  def __init__(self, npx_define:NpxDefine, dataset_path:Path, num_kfold:int=None):
 
-    self.name = self.text_parser.global_info['section']
+    self.name = npx_define.cfg_parser.preprocess_info['input']
+    assert self.name.endswith('_dataset'), self.name
+    self.name = self.name[:-len('_dataset')]
     self.download_path = dataset_path / self.name
     if num_kfold==None:
       num_kfold = 5
@@ -50,12 +43,12 @@ class NpxDataManager():
 
     self.download_path.mkdir(parents=True, exist_ok=True)
 
-    if self.name=='mnist_dataset':
+    if self.name=='mnist':
       self.raw_data_format = DataFormat.MATRIX3D
       self.data_format = DataFormat.MATRIX3D
-      self.step_generation = NpxTextParser.find_option_value(self.text_parser.global_info, 'step_generation', 'direct')
-      self.timesteps = NpxTextParser.find_option_value(self.text_parser.global_info, 'timesteps', 4)
-      #value = NpxTextParser.find_option_value(self.text_parser.global_info, 'resize', '14,14')
+      self.step_generation = npx_define.cfg_parser.train_info.setdefault('step_generation','direct')
+      self.timesteps = npx_define.cfg_parser.train_info.setdefault('timesteps',4)
+      #value = NpxCfgParser.find_option_value(npx_define.cfg_parser.train_info, 'resize', '14,14')
       #self.resize = intstr_to_tuple(value)
       transform = transforms.Compose([
         #transforms.Resize((14, 14)),
@@ -65,12 +58,12 @@ class NpxDataManager():
         transforms.Normalize((0,), (1,))])
       dataset_train_and_val = datasets.MNIST(root=self.download_path, train=True, download=True, transform=transform)
       self.dataset_test = datasets.MNIST(root=self.download_path, train=False, download=True, transform=transform)
-    elif self.name=='kmnist_dataset':
+    elif self.name=='kmnist':
       self.raw_data_format = DataFormat.MATRIX3D
       self.data_format = DataFormat.MATRIX3D
-      self.step_generation = NpxTextParser.find_option_value(self.text_parser.global_info, 'step_generation', 'direct')
-      self.timesteps = NpxTextParser.find_option_value(self.text_parser.global_info, 'timesteps', 4)
-      #value = NpxTextParser.find_option_value(self.text_parser.global_info, 'resize', '14,14')
+      self.step_generation = npx_define.cfg_parser.train_info.setdefault('step_generation','direct')
+      self.timesteps = npx_define.cfg_parser.train_info.setdefault('timesteps',4)
+      #value = NpxCfgParser.find_option_value(npx_define.cfg_parser.train_info, 'resize', '14,14')
       #self.resize = intstr_to_tuple(value)
       transform = transforms.Compose([
         #transforms.Resize((14, 14)),
@@ -80,12 +73,12 @@ class NpxDataManager():
         transforms.Normalize((0,), (1,))])
       dataset_train_and_val = datasets.KMNIST(root=self.download_path, train=True, download=True, transform=transform)
       self.dataset_test = datasets.KMNIST(root=self.download_path, train=False, download=True, transform=transform)
-    elif self.name=='fmnist_dataset':
+    elif self.name=='fmnist':
       self.raw_data_format = DataFormat.MATRIX3D
       self.data_format = DataFormat.MATRIX3D
-      self.step_generation = NpxTextParser.find_option_value(self.text_parser.global_info, 'step_generation', 'direct')
-      self.timesteps = NpxTextParser.find_option_value(self.text_parser.global_info, 'timesteps', 4)
-      #value = NpxTextParser.find_option_value(self.text_parser.global_info, 'resize', '14,14')
+      self.step_generation = npx_define.cfg_parser.train_info.setdefault('step_generation','direct')
+      self.timesteps = npx_define.cfg_parser.train_info.setdefault('timesteps',4)
+      #value = NpxCfgParser.find_option_value(npx_define.cfg_parser.train_info, 'resize', '14,14')
       #self.resize = intstr_to_tuple(value)
       transform = transforms.Compose([
         #transforms.Resize((14, 14)),
@@ -100,12 +93,12 @@ class NpxDataManager():
       download('https://github.com/zalandoresearch/fashion-mnist/raw/master/data/fashion/train-labels-idx1-ubyte.gz', self.download_path / 'FashionMNIST/raw' )
       dataset_train_and_val = datasets.FashionMNIST(root=self.download_path, train=True, download=True, transform=transform)
       self.dataset_test = datasets.FashionMNIST(root=self.download_path, train=False, download=True, transform=transform)
-    elif self.name=='cifar10_dataset':
+    elif self.name=='cifar10':
       self.raw_data_format = DataFormat.MATRIX3D
       self.data_format = DataFormat.MATRIX3D
-      self.step_generation = NpxTextParser.find_option_value(self.text_parser.global_info, 'step_generation', 'direct')
-      self.timesteps = NpxTextParser.find_option_value(self.text_parser.global_info, 'timesteps', 4)
-      #value = NpxTextParser.find_option_value(self.text_parser.global_info, 'resize', '32,32')
+      self.step_generation = npx_define.cfg_parser.train_info.setdefault('step_generation','direct')
+      self.timesteps = npx_define.cfg_parser.train_info.setdefault('timesteps',4)
+      #value = NpxCfgParser.find_option_value(npx_define.cfg_parser.train_info, 'resize', '32,32')
       #self.resize = intstr_to_tuple(value)
       transform = transforms.Compose([
         #transforms.Resize((32, 32)),
@@ -114,12 +107,12 @@ class NpxDataManager():
         transforms.Normalize((0, 0, 0), (1, 1, 1))])
       dataset_train_and_val = datasets.CIFAR10(root=self.download_path, train=True, download=True, transform=transform)
       self.dataset_test = datasets.CIFAR10(root=self.download_path, train=False, download=True, transform=transform)
-    elif self.name=='gtsrb_dataset':
+    elif self.name=='gtsrb':
       self.raw_data_format = DataFormat.MATRIX3D
       self.data_format = DataFormat.MATRIX3D
-      self.step_generation = NpxTextParser.find_option_value(self.text_parser.global_info, 'step_generation', 'direct')
-      self.timesteps = NpxTextParser.find_option_value(self.text_parser.global_info, 'timesteps', 4)
-      #value = NpxTextParser.find_option_value(self.text_parser.global_info, 'resize', '32,32')
+      self.step_generation = npx_define.cfg_parser.train_info.setdefault('step_generation','direct')
+      self.timesteps = npx_define.cfg_parser.train_info.setdefault('timesteps',4)
+      #value = NpxCfgParser.find_option_value(npx_define.cfg_parser.train_info, 'resize', '32,32')
       #self.resize = intstr_to_tuple(value)
       transform = transforms.Compose([
         #transforms.Resize((32, 32)),
@@ -128,15 +121,15 @@ class NpxDataManager():
         transforms.Normalize((0, 0, 0), (1, 1, 1))])
       dataset_train_and_val = datasets.GTSRB(root=self.download_path, split='train', download=True, transform=transform)
       self.dataset_test = datasets.GTSRB(root=self.download_path, split='test', download=True, transform=transform)
-    elif self.name=='dvsgesture_dataset':
+    elif self.name=='dvsgesture':
       self.raw_data_format = DataFormat.DVS
       self.data_format = DataFormat.MATRIX4D
       self.sensor_size = tonic.datasets.DVSGesture.sensor_size
       #denoise_transform = tonic.transforms.Denoise(filter_time=10000)
-      #value = NpxTextParser.find_option_value(self.text_parser.global_info, 'resize', '128,128')
+      #value = NpxCfgParser.find_option_value(npx_define.cfg_parser.train_info, 'resize', '128,128')
       #self.resize = intstr_to_tuple(value)
       #self.resize = (2,) + self.resize
-      self.timesteps = NpxTextParser.find_option_value(self.text_parser.global_info, 'timesteps', 25)
+      self.timesteps = npx_define.cfg_parser.train_info.setdefault('timesteps',25)
       frame_transform = tonic.transforms.ToFrame(sensor_size=self.sensor_size, n_time_bins=self.timesteps)
       all_transform = transforms.Compose([
         frame_transform])
@@ -189,7 +182,7 @@ class NpxDataManager():
         pass
       else:
         self.dataset_train += dataset_chunk
-    if self.name=='dvsgesture_dataset':
+    if self.name=='dvsgesture':
       collate_fn = tonic.collation.PadTensors(batch_first=False)
     else:
       collate_fn = None

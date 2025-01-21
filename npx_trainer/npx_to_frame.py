@@ -12,7 +12,8 @@ def get_slice_metadata(data: torch.Tensor, bin_count: int, overlap: float=0.0):
     indices_end = torch.searchsorted(times, window_end_times)
     return list(zip(indices_start, indices_end))
 
-def slice_with_metadata(data: torch.Tensor, metadata: list[tuple[torch.Tensor, torch.Tensor]]):
+#def slice_with_metadata(data: torch.Tensor, metadata: list[tuple[torch.Tensor, torch.Tensor]]):
+def slice_with_metadata(data: torch.Tensor, metadata: list):
     return [data[start:end] for start, end in metadata]
 
 def slice(data: torch.Tensor, bin_count: int, overlap: float=0.0):

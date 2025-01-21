@@ -19,7 +19,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data.dataset import Dataset
 import tonic
-from npx_to_frame import npx_to_frame
+from npx_to_frame import *
 
 def get_sample(dataset:Dataset, num_sample:int):
   num_data = len(dataset) 
@@ -104,6 +104,8 @@ def _generate_testvector_for_dvs_input(npx_module:NpxModule, npx_define:NpxDefin
 
 def _generate_testvector_for_matrix3d_input(npx_module:NpxModule, npx_define:NpxDefine, npx_data_manager:NpxDataManager, num_sample:int):
   sample_list = get_sample(dataset=npx_data_manager.dataset_test, num_sample=num_sample)
+  print('sample:')
+  print(sample_list)
 
   spike_input = False
   for i, (data, target) in enumerate(sample_list):
@@ -127,7 +129,7 @@ def _generate_testvector_for_matrix3d_input(npx_module:NpxModule, npx_define:Npx
       if npx_module.input_size != raw_data.shape[-2:]:
         resized_data = nn.functional.interpolate(raw_data, size=npx_module.input_size)
       else:
-        resized_data = data
+        resized_data = raw_data
       input_data = resized_data.repeat(tuple([num_steps] + torch.ones(len(raw_data.size()), dtype=int).tolist()))
       scale_threshold_for_first_leaky_layer(npx_module, 255);
 
@@ -137,7 +139,7 @@ def _generate_testvector_for_matrix3d_input(npx_module:NpxModule, npx_define:Npx
     if True:
       spk_rec = manual_forward_pass(npx_module, input_data, tv_bin_path=riscv_testvector_bin_path)
       print('output spikes: ', spk_rec.data)
-      print('output spikes: ', spk_rec.sum(0).data)
+      print('accumulated output spikes: ', spk_rec.sum(0).data)
       inference_class_id = spk_rec.sum(0).argmax()
       print('class id from inference: ', int(inference_class_id))
       print('class id from dataset: ', int(target[0]))
@@ -152,12 +154,12 @@ def generate_testvector(npx_define:NpxDefine, npx_data_manager:NpxDataManager, n
   assert riscv_parameter_path.exists(), riscv_parameter_path
   npx_module.load_state_dict(torch.load(riscv_parameter_path, weights_only=False)['npx_module'])
 
-  npx_module.backup_riscv_net_cfg(npx_define, True)
-
   if npx_data_manager.raw_data_format == DataFormat.MATRIX3D:
     _generate_testvector_for_matrix3d_input(npx_module, npx_define, npx_data_manager, num_sample)
-  if npx_data_manager.raw_data_format == DataFormat.DVS:
+  elif npx_data_manager.raw_data_format == DataFormat.DVS:
     _generate_testvector_for_dvs_input(npx_module, npx_define, npx_data_manager, num_sample)
+  else:
+    assert 0, npx_data_manager.raw_data_format
 
 debug_check_cpu_vs_gpu_result = False
 debug_print_layer_outout = False
@@ -250,7 +252,6 @@ if __name__ == '__main__':
   cmd_list = args.cmd
   num_sample = int(args.sample)
   
-  num_kfold = 5
   output_path = Path(args.output).absolute()
   assert output_path.is_dir(), output_path
   dataset_path = Path(args.dataset).absolute() if args.dataset else (output_path / 'dataset')
@@ -261,9 +262,7 @@ if __name__ == '__main__':
     app_cfg_path = Path(app_cfg)
     #print(app_cfg_path)
     npx_define = NpxDefine(app_cfg_path=app_cfg_path, output_path=output_path)
-    app_pre_path = npx_define.get_riscv_preprocess_path()
-    npx_data_manager = NpxDataManager(app_pre_path=app_pre_path,
-    dataset_path=dataset_path, num_kfold=num_kfold)
+    npx_data_manager = NpxDataManager(npx_define=npx_define, dataset_path=dataset_path, num_kfold=npx_define.kfold)
     if 'testvector' in cmd_list:
       generate_testvector(npx_define=npx_define, npx_data_manager=npx_data_manager, num_sample=num_sample)
     else:

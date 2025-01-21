@@ -225,21 +225,16 @@ if __name__ == '__main__':
   for app_cfg in app_cfg_list:
     app_cfg_path = Path(app_cfg)
     npx_define = NpxDefine(app_cfg_path=app_cfg_path, output_path=output_path)
-    app_pre_path = npx_define.get_riscv_preprocess_path()
-    num_epochs = npx_define.epoch
-    num_kfold = npx_define.kfold
-    num_repeat = npx_define.repeat
-    npx_data_manager = NpxDataManager(app_pre_path=app_pre_path, dataset_path=dataset_path, 
-                                      num_kfold=num_kfold)
+    npx_data_manager = NpxDataManager(npx_define=npx_define, dataset_path=dataset_path, num_kfold=npx_define.kfold)
     if 'reset' in cmd_list:
       if npx_define.app_dir_path.is_dir():
         shutil.rmtree(npx_define.app_dir_path)
     if 'train' in cmd_list:
-      for repeat_index in range(num_repeat):
-        npx_trainer.train(npx_define=npx_define, npx_data_manager=npx_data_manager, repeat_index=repeat_index, num_epochs=num_epochs)
+      for repeat_index in range(npx_define.repeat):
+        npx_trainer.train(npx_define=npx_define, npx_data_manager=npx_data_manager, repeat_index=repeat_index, num_epochs=npx_define.epoch)
     if 'quantize' in cmd_list:
-      for repeat_index in range(num_repeat):
+      for repeat_index in range(npx_define.repeat):
         npx_trainer.quantize(npx_define=npx_define, repeat_index=repeat_index)
     if 'test' in cmd_list:
-      for repeat_index in range(num_repeat):
+      for repeat_index in range(npx_define.repeat):
         npx_trainer.test(npx_define=npx_define, npx_data_manager=npx_data_manager, repeat_index=repeat_index)
