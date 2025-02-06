@@ -34,7 +34,7 @@ def copy_best_parameter(npx_define:NpxDefine, best_result:RecordResult):
   best_cfg = npx_define.get_parameter_epoch_cfg_path(int(best_result.epoch_index_str))
   assert best_cfg.is_file(), best_cfg
   cfg_parser = NpxCfgParser(best_cfg)
-  cfg_parser.preprocess_info = None
+  cfg_parser.elaborate_for_riscv()
   riscv_cfg_path = npx_define.get_riscv_network_path()
   cfg_parser.write_file(riscv_cfg_path)
   # parameter

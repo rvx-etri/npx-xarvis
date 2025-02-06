@@ -193,10 +193,7 @@ def manual_forward_pass(npx_module:NpxModule, data, tv_bin_path:Path=None):
         last_tensor = last_tensor.to(torch.int32).to(torch.float)
 
       if tv_bin_path:
-        if type(layer)==snntorch.Leaky or (prev_layer_type==snntorch.Leaky and type(layer)==nn.Flatten):
-          write_data_aligned_by_4bytes(tv_file, last_tensor, torch.int8)
-        else:
-          write_data_aligned_by_4bytes(tv_file, last_tensor, torch.int32)
+        write_data_aligned_by_4bytes(tv_file, last_tensor, torch.int32)
         line_list.append(str(last_tensor.tolist()))
 
       prev_layer_type = type(layer)

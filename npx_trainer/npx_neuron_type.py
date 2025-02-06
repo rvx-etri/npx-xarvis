@@ -8,6 +8,7 @@ class NpxNeuronType():
   def __init__(self, type_by_str:str=None):
     assert type_by_str!=None, type_by_str
     assert type_by_str[0]=='q', type_by_str
+    self.is_quantized = True
     
     non_decimal_index = 1
     while 1:

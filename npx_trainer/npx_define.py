@@ -9,8 +9,8 @@ RecordResult = namedtuple('RecordResult', ['dataset_name', 'train_neuron_str', '
 #CfgFilename = namedtuple('CfgFilename', ['prefix', 'repeat_index', 'epoch_index', 'value_type'])
 
 class DataFormat(Enum):
-  MATRIX3D = 1
-  MATRIX4D = 2
+  MATRIX3D = 1 # c,h,w
+  MATRIX4D = 2 # t,c,h,w
   DVS = 3
   
 class NpxDefine:
@@ -185,12 +185,7 @@ class NpxDefine:
   def get_riscv_sample_bin_path(self, i:int, data_format:DataFormat):
     filename = self.app_name
     filename += '_sample'
-    if data_format == DataFormat.MATRIX3D:
-      filename += '_matrix3d'
-    elif data_format == DataFormat.MATRIX4D:
-      filename += '_matrix4d'
-    elif data_format == DataFormat.DVS:
-      filename += '_dvs'
+    #filename += f'_{data_format.name.lower()}'
     filename += f'_{i:03}'
     filename += '.bin'
     return self.riscv_dir_path / filename

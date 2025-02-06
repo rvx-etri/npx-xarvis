@@ -206,14 +206,14 @@ class NpxModule(nn.Module):
 
       elif layer_option.name == 'MaxPool2d':
         kernel_size = layer_option.setdefault('kernel_size', 1)
-        stride = layer_option.setdefault('strie', kernel_size)
+        stride = layer_option.setdefault('stride', kernel_size)
         padding = layer_option.setdefault('padding', 0)
 
         layer = nn.MaxPool2d(kernel_size, stride, padding)
           
       elif layer_option.name == 'AvgPool2d':
         kernel_size = layer_option.setdefault('kernel_size', 1)
-        stride = layer_option.setdefault('strie', kernel_size)
+        stride = layer_option.setdefault('stride', kernel_size)
         padding = layer_option.setdefault('padding', 0)
 
         layer = nn.AvgPool2d(kernel_size, stride, padding)
@@ -233,7 +233,8 @@ class NpxModule(nn.Module):
   def make_neuron(self, layer_option, neuron_output):
     beta = layer_option.setdefault('beta', 1.0)
     reset_mechanism = layer_option.setdefault('reset_mechanism', 'zero')
-    threshold = layer_option.setdefault('threshold', 1.0)
+    #threshold = layer_option.setdefault('threshold', 1.0)
+    threshold = 1.0
     #spike_grad = surrogate.fast_sigmoid(slope=25)
     if self.can_learn_neural_threshold:
       learn_threshold = layer_option.setdefault('learn_threshold', False)
