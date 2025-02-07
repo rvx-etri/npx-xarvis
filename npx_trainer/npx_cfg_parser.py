@@ -185,6 +185,11 @@ class NpxCfgParser():
         datatype = DataType(SignedType.UNSIGNED, NumberType.DISCR, scale)
       else:
         assert 0
+    elif self.preprocess_info['input']=='dvsgesture_dataset':
+      scale = 1
+      datatype = DataType(SignedType.UNSIGNED, NumberType.DISCR, scale)
+    else:
+      assert 0
     return LayerIoInfo(scale, datatype, self.train_info['input_channels'], self.train_info['input_size'])
   
   def elaborate_for_riscv(self):

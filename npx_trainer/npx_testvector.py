@@ -88,10 +88,10 @@ def _generate_testvector_for_dvs_input(npx_module:NpxModule, npx_define:NpxDefin
       #frames = nn.functional.interpolate(frames, size=npx_module.input_size, mode='bilinear')
     else:
       resized_frames = frames
-    save_sample(npx_define, resized_frames, target, i, DataFormat.MATRIX4D, torch.uint8)
+    #save_sample(npx_define, resized_frames, target, i, DataFormat.MATRIX4D, torch.uint8)    
 
     # save testvector
-    riscv_testvector_bin_path = npx_define.get_riscv_testvector_bin_path(i=i)
+    riscv_testvector_bin_path = npx_define.get_riscv_layeroutput_bin_path(i=i)
     #if not riscv_testvector_bin_path.is_file():
     if True:
       assert(npx_define.timesteps == npx_data_manager.timesteps)
@@ -126,15 +126,16 @@ def _generate_testvector_for_matrix3d_input(npx_module:NpxModule, npx_define:Npx
       input_data = spikegen.rate(resized_data, num_steps=num_steps)
       save_sample(npx_define, input_data, target, i, DataFormat.MATRIX4D, torch.int8)
     else :
+      if i==0:
+        scale_threshold_for_first_leaky_layer(npx_module, 255)
       if npx_module.input_size != raw_data.shape[-2:]:
         resized_data = nn.functional.interpolate(raw_data, size=npx_module.input_size)
       else:
         resized_data = raw_data
-      input_data = resized_data.repeat(tuple([num_steps] + torch.ones(len(raw_data.size()), dtype=int).tolist()))
-      scale_threshold_for_first_leaky_layer(npx_module, 255);
+      input_data = resized_data.repeat(tuple([num_steps] + torch.ones(len(raw_data.size()), dtype=int).tolist()))      
 
     # save spike(rate coded data) sample and testvector
-    riscv_testvector_bin_path = npx_define.get_riscv_testvector_bin_path(i=i)
+    riscv_testvector_bin_path = npx_define.get_riscv_layeroutput_bin_path(i=i)
     #if not riscv_testvector_bin_path.is_file():
     if True:
       spk_rec = manual_forward_pass(npx_module, input_data, tv_bin_path=riscv_testvector_bin_path)
