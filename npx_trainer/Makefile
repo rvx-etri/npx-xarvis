@@ -34,6 +34,9 @@ riscv:
 tv:
 	@${PYTHON3_CMD} ./npx_testvector.py -cfg $(CFG_FILE) -cmd testvector -dataset ${DATASET_DIR} -s ${NUM_SAMPLE} -o ${RESULT_DIR}
 
+sample:
+	@${PYTHON3_CMD} ./npx_testvector.py -cfg $(CFG_FILE) -cmd testvector -dataset ${DATASET_DIR} -s ${NUM_SAMPLE} -o ${RESULT_DIR} --sample_only
+
 #########
 ## APP ##
 #########
@@ -60,6 +63,9 @@ $(addsuffix .riscv, ${APP_CFG_NAME_LIST}):%.riscv:
 
 $(addsuffix .tv, ${APP_CFG_NAME_LIST}):%.tv:
 	@make tv CFG_FILE=${APP_CFG_DIR}/$(*).cfg
+
+$(addsuffix .sample, ${APP_CFG_NAME_LIST}):%.sample:
+	@make sample CFG_FILE=${APP_CFG_DIR}/$(*).cfg
 
 ##########
 ## TEST ##

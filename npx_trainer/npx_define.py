@@ -74,6 +74,10 @@ class NpxDefine:
   @property
   def riscv_dir_path(self):
     return self.app_dir_path / 'riscv'
+  
+  @property
+  def riscv_tv_path(self):
+    return self.riscv_dir_path
 
   @property
   def dataset_name(self):
@@ -188,18 +192,11 @@ class NpxDefine:
     #filename += f'_{data_format.name.lower()}'
     filename += f'_{i:03}'
     filename += '.bin'
-    return self.riscv_dir_path / filename
+    return self.riscv_tv_path / filename
 
   def get_riscv_layeroutput_bin_path(self, i:int):
     filename = self.app_name
     filename += '_layeroutput'
     filename += f'_{i:03}'
     filename += '.bin'
-    return self.riscv_dir_path / filename
-
-  def get_riscv_layeroutput_text_path(self, i:int):
-    filename = self.app_name
-    filename += '_layeroutput'
-    filename += f'_{i:03}'
-    filename += '.text'
-    return self.riscv_dir_path / filename
+    return self.riscv_tv_path / filename

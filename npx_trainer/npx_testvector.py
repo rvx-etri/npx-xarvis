@@ -67,7 +67,7 @@ def save_sample(npx_define:NpxDefine, data:torch.Tensor, target:torch.Tensor, i:
     line_list.append(str(target.tolist()))
     riscv_sample_text_path.write_text('\n'.join(line_list))
 
-def _generate_testvector_for_dvs_input(npx_module:NpxModule, npx_define:NpxDefine, npx_data_manager:NpxDataManager, num_sample:int):
+def _generate_testvector_for_dvs_input(npx_module:NpxModule, npx_define:NpxDefine, npx_data_manager:NpxDataManager, num_sample:int, sample_only:bool):
   sample_list = get_sample(dataset=npx_data_manager.dataset_test_raw, num_sample=num_sample)
 
   for i, (data, target) in enumerate(sample_list):
@@ -91,7 +91,10 @@ def _generate_testvector_for_dvs_input(npx_module:NpxModule, npx_define:NpxDefin
     #save_sample(npx_define, resized_frames, target, i, DataFormat.MATRIX4D, torch.uint8)    
 
     # save testvector
-    riscv_testvector_bin_path = npx_define.get_riscv_layeroutput_bin_path(i=i)
+    if sample_only:
+      riscv_testvector_bin_path = None
+    else:
+      riscv_testvector_bin_path = npx_define.get_riscv_layeroutput_bin_path(i=i)
     #if not riscv_testvector_bin_path.is_file():
     if True:
       assert(npx_define.timesteps == npx_data_manager.timesteps)
@@ -102,7 +105,7 @@ def _generate_testvector_for_dvs_input(npx_module:NpxModule, npx_define:NpxDefin
       print('class id from inference: ', int(inference_class_id))
       print('class id from dataset: ', int(target[0]))
 
-def _generate_testvector_for_matrix3d_input(npx_module:NpxModule, npx_define:NpxDefine, npx_data_manager:NpxDataManager, num_sample:int):
+def _generate_testvector_for_matrix3d_input(npx_module:NpxModule, npx_define:NpxDefine, npx_data_manager:NpxDataManager, num_sample:int, sample_only:bool):
   sample_list = get_sample(dataset=npx_data_manager.dataset_test, num_sample=num_sample)
   print('sample:')
   print(sample_list)
@@ -135,7 +138,10 @@ def _generate_testvector_for_matrix3d_input(npx_module:NpxModule, npx_define:Npx
       input_data = resized_data.repeat(tuple([num_steps] + torch.ones(len(raw_data.size()), dtype=int).tolist()))      
 
     # save spike(rate coded data) sample and testvector
-    riscv_testvector_bin_path = npx_define.get_riscv_layeroutput_bin_path(i=i)
+    if sample_only:
+      riscv_testvector_bin_path = None
+    else:
+      riscv_testvector_bin_path = npx_define.get_riscv_layeroutput_bin_path(i=i)
     #if not riscv_testvector_bin_path.is_file():
     if True:
       spk_rec = manual_forward_pass(npx_module, input_data, tv_bin_path=riscv_testvector_bin_path)
@@ -145,7 +151,7 @@ def _generate_testvector_for_matrix3d_input(npx_module:NpxModule, npx_define:Npx
       print('class id from inference: ', int(inference_class_id))
       print('class id from dataset: ', int(target[0]))
 
-def generate_testvector(npx_define:NpxDefine, npx_data_manager:NpxDataManager, num_sample:int):
+def generate_testvector(npx_define:NpxDefine, npx_data_manager:NpxDataManager, num_sample:int, sample_only:bool):
   print('\n[TEST VECTOR]', npx_define.app_name)
 
   npx_module = NpxModule(app_cfg_path=npx_define.app_cfg_path, 
@@ -154,11 +160,13 @@ def generate_testvector(npx_define:NpxDefine, npx_data_manager:NpxDataManager, n
   riscv_parameter_path = npx_define.get_riscv_parameter_path(is_quantized=True)
   assert riscv_parameter_path.exists(), riscv_parameter_path
   npx_module.load_state_dict(torch.load(riscv_parameter_path, weights_only=False)['npx_module'])
+  
+  npx_define.riscv_tv_path.mkdir(exist_ok=True, parents=True)
 
   if npx_data_manager.raw_data_format == DataFormat.MATRIX3D:
-    _generate_testvector_for_matrix3d_input(npx_module, npx_define, npx_data_manager, num_sample)
+    _generate_testvector_for_matrix3d_input(npx_module, npx_define, npx_data_manager, num_sample, sample_only)
   elif npx_data_manager.raw_data_format == DataFormat.DVS:
-    _generate_testvector_for_dvs_input(npx_module, npx_define, npx_data_manager, num_sample)
+    _generate_testvector_for_dvs_input(npx_module, npx_define, npx_data_manager, num_sample, sample_only)
   else:
     assert 0, npx_data_manager.raw_data_format
 
@@ -239,6 +247,7 @@ if __name__ == '__main__':
   parser.add_argument('-dataset', '-d', help='dataset directory')
   parser.add_argument('-output', '-o', help='output directory')
   parser.add_argument('-sample', '-s', help='number of sample', default=10)
+  parser.add_argument('--sample_only', action='store_true', help='if stores sample only or with layer outputs')
 
   # check args
   args = parser.parse_args()
@@ -262,6 +271,6 @@ if __name__ == '__main__':
     npx_define = NpxDefine(app_cfg_path=app_cfg_path, output_path=output_path)
     npx_data_manager = NpxDataManager(npx_define=npx_define, dataset_path=dataset_path, num_kfold=npx_define.kfold)
     if 'testvector' in cmd_list:
-      generate_testvector(npx_define=npx_define, npx_data_manager=npx_data_manager, num_sample=num_sample)
+      generate_testvector(npx_define=npx_define, npx_data_manager=npx_data_manager, num_sample=num_sample, sample_only=args.sample_only)
     else:
       assert 0, cmd_list
