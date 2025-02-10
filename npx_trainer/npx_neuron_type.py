@@ -72,19 +72,19 @@ class NpxNeuronType():
     
   @property
   def smin(self):
-    return -int(2.**(self.num_bits-1))
+    return -self.smax
   
   @property
   def qscale(self):
-    return int(2.**(self.num_bits-1)) if self.is_signed_weight else int(2.**(self.num_bits))
+    return self.smax if self.is_signed_weight else self.umax
   
   @property
   def qmax(self):
-    return self.qscale-1
+    return self.qscale
 
   @property
   def qmin(self):
-    return (self.smin+1) if self.is_signed_weight else 0
+    return self.smin if self.is_signed_weight else self.umin
   
   @property
   def qfactor(self):

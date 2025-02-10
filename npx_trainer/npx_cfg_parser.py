@@ -50,11 +50,12 @@ class SignedType(Enum):
   
 class NumberType(Enum):
   ERROR = -1
-  DISCR = 0
-  CONTI = 1
+  CONTI = 0
+  DISCR = 1
   
   def __mul__ (self, other):
-    result = NumberType.ERROR
+    assert(self!=NumberType.ERROR)
+    assert(other!=NumberType.ERROR)
     if self==NumberType.CONTI or other==NumberType.CONTI:
       result = NumberType.CONTI
     else:
@@ -62,7 +63,7 @@ class NumberType(Enum):
     return result
   
   @property
-  def is_continuous(self):
+  def is_quantized(self):
     return self.value
   
 class DataType(NamedTuple):
@@ -121,7 +122,8 @@ class NpxCfgParser():
     self.train_info = None
     self.preprocess_info = None
     self.layer_info_list = []
-    if path:
+    if path and path.exists():
+      assert path.is_file(), path
       self.parse_file(path)
   
   def parse_file(self, path:Path):
@@ -253,7 +255,7 @@ class NpxCfgParser():
     for layer_info in self.layer_info_list:
       for io_tpye in ('in','out'):
         layer_info[f'{io_tpye}_is_signed'] = layer_info[f'{io_tpye}put_info'].datatype.signedtype.is_signed
-        layer_info[f'{io_tpye}_is_continuous'] = layer_info[f'{io_tpye}put_info'].datatype.numbertype.is_continuous
+        layer_info[f'{io_tpye}_is_quantized'] = layer_info[f'{io_tpye}put_info'].datatype.numbertype.is_quantized
         layer_info[f'{io_tpye}_maxvalue'] = layer_info[f'{io_tpye}put_info'].datatype.maxvalue
         layer_info[f'{io_tpye}_channels'] = layer_info[f'{io_tpye}put_info'].channels
         layer_info[f'{io_tpye}_dims'] = layer_info[f'{io_tpye}put_info'].dims

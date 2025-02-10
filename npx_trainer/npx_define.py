@@ -20,27 +20,12 @@ class NpxDefine:
 
     self.cfg_parser = NpxCfgParser()
     self.cfg_parser.parse_file(self.app_cfg_path)
-    #cfg_parser.write_file(self.app_cfg_path)
     
-    preprocess_default_info_list = (
-        ('dataset', 'mnist_dataset'),('timesteps', 32)
-        )
-    for var_name, default_value in preprocess_default_info_list:
-      value = self.cfg_parser.preprocess_info.setdefault(var_name, default_value)
-      setattr(self, var_name, value)
-      self.__dict__[var_name] = value
-    
-    train_default_info_list = (
-        ('neuron_type', ''),
-        ('train_neuron_str', ''),('test_neuron_str', ''),
-        ('input_channels', 3),('input_size', (14,14)),
-        ('output_classes', 10),
-        ('epoch',10),('kfold',5),('repeat',1)
-        )
-    for var_name, default_value in train_default_info_list:
-      value = self.cfg_parser.train_info.setdefault(var_name, default_value)
-      setattr(self, var_name, value)
-      self.__dict__[var_name] = value
+    #self.__dict__.update(self.cfg_parser.preprocess_info)
+    assert(self.cfg_parser.preprocess_info['input'].endswith('_dataset'))
+    self.dataset_name = self.cfg_parser.preprocess_info['input'][:-len('_dataset')]
+    self.timesteps = self.cfg_parser.preprocess_info['timesteps']
+    self.__dict__.update(self.cfg_parser.train_info)
     
     if self.neuron_type:
       self.train_neuron_str = self.neuron_type
@@ -78,10 +63,6 @@ class NpxDefine:
   @property
   def riscv_tv_path(self):
     return self.riscv_dir_path
-
-  @property
-  def dataset_name(self):
-    return self.dataset
 
   def get_parameter_filename_prefix(self, repeat_index:int):
     return f'{self.app_name}_r{repeat_index}'
