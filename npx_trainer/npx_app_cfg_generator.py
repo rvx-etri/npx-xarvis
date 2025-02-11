@@ -169,15 +169,8 @@ class NpxAppCfgGenerator():
 
   def import_module(self, npx_module):
     self.app_name = npx_module.app_name
-    self.neuron_type = npx_module.neuron_type
+    self.neuron_type = npx_module.global_neuron_type_str
     self.cfg_parser = copy.deepcopy(npx_module.cfg_parser)
-    self.cfg_parser.train_info['mapped_fvalue'] = self.neuron_type.mapped_fvalue
-    for i, layer in enumerate(npx_module.layer_sequence):
-      if type(layer)==snntorch.Leaky:
-        self.cfg_parser.layer_info_list[i]['beta'] = float(layer.beta)
-        self.cfg_parser.layer_info_list[i]['reset_mechanism'] = layer.reset_mechanism
-        #self.cfg_parser.layer_info_list[i]['threshold', float(layer.threshold))
-        self.cfg_parser.layer_info_list[i]['learn_threshold'] = npx_module.does_neuron_learn_threshold(layer)
 
   def __str__(self) -> str:
     assert self.cfg_parser

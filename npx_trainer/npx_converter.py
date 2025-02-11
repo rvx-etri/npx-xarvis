@@ -53,8 +53,7 @@ def generate_riscv_binary(npx_define:NpxDefine):
   riscv_parameter_path = npx_define.get_riscv_parameter_path(True)
   assert riscv_parameter_path.is_file(), riscv_parameter_path
 
-  npx_module = NpxModule(app_cfg_path=npx_define.app_cfg_path,
-                       neuron_type_str=npx_define.train_neuron_str)
+  npx_module = NpxModule(app_cfg_path=npx_define.app_cfg_path)
   npx_module.load_state_dict(torch.load(riscv_parameter_path, weights_only=False)['npx_module'])
 
   riscv_parameter_bin_path = npx_define.get_riscv_parameter_bin_path(True)
@@ -71,7 +70,15 @@ def write_parameter_to_binaryfile(npx_module:NpxModule, bin_path:Path):
     for i, layer in enumerate(npx_module.layer_sequence):
       if (type(layer)==nn.Linear) or (type(layer)==nn.Conv2d):
         weights = layer.weight.data.flatten()
-        write_data_aligned_by_4bytes(bin_file, weights, torch.int8)
+        neuron_type:NpxNeuronType = layer.neuron_type
+        if neuron_type.num_bits <= 8:
+          write_data_aligned_by_4bytes(bin_file, weights, torch.int8)
+        elif neuron_type.num_bits <= 16:
+          write_data_aligned_by_4bytes(bin_file, weights, torch.int16)
+        elif neuron_type.num_bits <= 32:
+          write_data_aligned_by_4bytes(bin_file, weights, torch.int32)
+        else:
+          assert 0, neuron_type.num_bits
       elif type(layer)==snntorch.Leaky:
         threshold = layer.threshold
         write_data_aligned_by_4bytes(bin_file, threshold, torch.int32)

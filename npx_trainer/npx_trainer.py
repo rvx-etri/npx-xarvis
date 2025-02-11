@@ -41,10 +41,10 @@ class NpxTrainer():
       optimizer.load_state_dict(check_point['optimizer'])
 
   def train(self, npx_define:NpxDefine, repeat_index:int, npx_data_manager:NpxDataManager, num_epochs:int):
-    print('\n[TRAIN]', npx_define.app_name, npx_define.train_neuron_str, repeat_index, num_epochs)
+    print('\n[TRAIN]', npx_define.app_name, repeat_index, num_epochs)
     npx_data_manager.setup_loader(repeat_index)
     npx_define.parameter_dir_path.mkdir(parents=True, exist_ok=True)
-    npx_module = self.module_class(app_cfg_path=npx_define.app_cfg_path, neuron_type_str=npx_define.train_neuron_str).to(self.device)
+    npx_module = self.module_class(app_cfg_path=npx_define.app_cfg_path).to(self.device)
     self.optimizer = torch.optim.Adam(npx_module.parameters())
 
     previous_epoch_index = -1
@@ -143,8 +143,8 @@ class NpxTrainer():
     return torch.stack(spk_rec)
 
   def quantize(self, npx_define:NpxDefine, repeat_index:int):
-    print('\n[QUANTIZE]', npx_define.app_name, npx_define.test_neuron_str, repeat_index)
-    npx_module = self.module_class(app_cfg_path=npx_define.app_cfg_path, neuron_type_str=npx_define.test_neuron_str).to(self.device)
+    print('\n[QUANTIZE]', npx_define.app_name, repeat_index)
+    npx_module = self.module_class(app_cfg_path=npx_define.app_cfg_path).to(self.device)
     npx_module.eval()
     for history_parameter_path in npx_define.parameter_dir_path.glob(npx_define.get_parameter_filename_pattern(repeat_index, False)):
       self.load_checkpoint(npx_module,None,history_parameter_path)
@@ -162,15 +162,15 @@ class NpxTrainer():
         #torch.save(npx_module.state_dict(), quant_parameter_path)
 
   @staticmethod
-  def format_test_result(npx_define:NpxDefine, repeat_index:int, epoch_index:int, val_result:TestResult, test_result:TestResult):
-    result = RecordResult(npx_define.dataset_name,npx_define.train_neuron_str,npx_define.test_neuron_str,
+  def format_test_result(npx_define:NpxDefine, neuron_type_str, repeat_index:int, epoch_index:int, val_result:TestResult, test_result:TestResult):
+    result = RecordResult(npx_define.dataset_name, neuron_type_str, neuron_type_str,
                           f'{repeat_index:01}', f'{epoch_index:03}', 
                           f'{(val_result.acc/val_result.total):.4f}',f'{(test_result.acc/test_result.total):.4f}')
     return '|'.join(result)
 
   def test(self, npx_define:NpxDefine, repeat_index:int, npx_data_manager:NpxDataManager):
     npx_define.report_dir_path.mkdir(parents=True, exist_ok=True)
-    print('\n[TEST]', npx_define.app_name, npx_define.test_neuron_str, repeat_index)
+    print('\n[TEST]', npx_define.app_name, repeat_index)
 
     report_path = npx_define.get_report_path(repeat_index)
     if report_path.is_file():
@@ -178,7 +178,7 @@ class NpxTrainer():
     else:
       result_list = []
       npx_data_manager.setup_loader(repeat_index)
-      npx_module = self.module_class(app_cfg_path=npx_define.app_cfg_path, neuron_type_str=npx_define.test_neuron_str).to(self.device)
+      npx_module = self.module_class(app_cfg_path=npx_define.app_cfg_path).to(self.device)
       for history_parameter_path in sorted(npx_define.parameter_dir_path.glob(npx_define.get_parameter_filename_pattern(repeat_index, True)),reverse=True):
         self.load_checkpoint(npx_module,None,history_parameter_path)
         #npx_module.load_state_dict(torch.load(history_parameter_path))
@@ -190,7 +190,7 @@ class NpxTrainer():
         result_list.append((epoch_index,val_result, test_result))
       line_list = []
       for epoch_index, val_result, test_result in result_list:
-        line_list.append(NpxTrainer.format_test_result(npx_define, repeat_index, epoch_index, val_result, test_result))
+        line_list.append(NpxTrainer.format_test_result(npx_define, npx_module.global_neuron_type_str, repeat_index, epoch_index, val_result, test_result))
       npx_define.get_report_path(repeat_index).write_text('\n'.join(line_list))
     return npx_module
 

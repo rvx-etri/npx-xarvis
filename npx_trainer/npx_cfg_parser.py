@@ -37,7 +37,8 @@ class SignedType(Enum):
   SIGNED = 1
   
   def __mul__ (self, other):
-    result = SignedType.ERROR
+    assert(self!=SignedType.ERROR)
+    assert(other!=SignedType.ERROR)
     if self==SignedType.SIGNED or other==SignedType.SIGNED:
       result = SignedType.SIGNED
     else:
@@ -120,6 +121,7 @@ class NpxCfgParser():
     super().__init__()
     self.find_section_name = re.compile('\[([^]]+)\]').findall
     self.train_info = None
+    self.global_info = None
     self.preprocess_info = None
     self.layer_info_list = []
     if path and path.exists():
@@ -141,6 +143,8 @@ class NpxCfgParser():
           self.train_info = current_section
         elif section_name=='preprocess':
           self.preprocess_info = current_section
+        elif section_name=='global':
+          self.global_info = current_section
         else:
           self.layer_info_list.append(current_section)
       elif line.startswith('\0') or line.startswith('#') or line.startswith(';') or line.startswith('\n'):
@@ -154,6 +158,8 @@ class NpxCfgParser():
       line_list.append(str(self.preprocess_info))
     if self.train_info:
       line_list.append(str(self.train_info))
+    if self.global_info:
+      line_list.append(str(self.global_info))
     for section in self.layer_info_list:
       line_list.append(str(section))
     return '\n'.join(line_list)
@@ -195,11 +201,11 @@ class NpxCfgParser():
     return LayerIoInfo(scale, datatype, self.train_info['input_channels'], self.train_info['input_size'])
   
   def elaborate_for_riscv(self):
-    output_info = self.generate_preprocess_output_info()
-    neuron_type = NpxNeuronType(self.train_info['neuron_type'])
-    weight_datatype =  DataType.convert_neuron_type(neuron_type)
+    output_info = self.generate_preprocess_output_info()    
     for layer_info in self.layer_info_list:
       layer_info['input_info'] = output_info
+      neuron_type = NpxNeuronType(layer_info['neuron_type'])
+      weight_datatype =  DataType.convert_neuron_type(neuron_type)
       output_scale = layer_info['input_info'].scale
       output_datatype = layer_info['input_info'].datatype      
       if layer_info.name=='Conv2d':
@@ -214,8 +220,7 @@ class NpxCfgParser():
           output_size.append(new_size)
         out_channels = layer_info['out_channels']
         
-        #del layer_info['in_channels']
-        #del layer_info['out_channels']
+        layer_info['weight_bitwidth'] = neuron_type.num_bits
         
       elif layer_info.name=='Linear':
         assert layer_info['input_info'].dims==1, layer_info['input_info'].size
@@ -225,8 +230,7 @@ class NpxCfgParser():
         out_channels = layer_info['input_info'].channels
         output_size = (layer_info['out_features'],1)
         
-        #del layer_info['in_features']
-        #del layer_info['out_features']
+        layer_info['weight_bitwidth'] = neuron_type.num_bits
         
       elif layer_info.name=='AvgPool2d' or layer_info.name=='MaxPool2d':
         assert layer_info['input_info'].dims==2, layer_info['input_info'].size
@@ -240,7 +244,10 @@ class NpxCfgParser():
         output_datatype = DataType(SignedType.UNSIGNED,NumberType.DISCR,1)
         out_channels = layer_info['input_info'].channels
         output_size = layer_info['input_info'].size
+        
         del layer_info['learn_threshold']
+        del layer_info['mapped_fvalue']
+        
       elif layer_info.name=='Flatten':
         out_channels = 1
         output_size = layer_info['input_info'].channels
@@ -264,6 +271,10 @@ class NpxCfgParser():
       print(layer_info.name)
       print(layer_info['input_info'])
       print(layer_info['output_info'])
+      
       del layer_info['input_info']
       del layer_info['output_info']
+      del layer_info['neuron_type']
+      
     self.preprocess_info = None
+    self.global_info = None

@@ -25,15 +25,8 @@ class NpxDefine:
     assert(self.cfg_parser.preprocess_info['input'].endswith('_dataset'))
     self.dataset_name = self.cfg_parser.preprocess_info['input'][:-len('_dataset')]
     self.timesteps = self.cfg_parser.preprocess_info['timesteps']
-    self.__dict__.update(self.cfg_parser.train_info)
     
-    if self.neuron_type:
-      self.train_neuron_str = self.neuron_type
-      self.test_neuron_str = self.neuron_type
-    else:
-      assert self.train_neuron_str
-      if not self.test_neuron_str:
-        self.test_neuron_str = self.train_neuron_str
+    self.__dict__.update(self.cfg_parser.train_info)
 
   @staticmethod
   def print_test_result(result:TestResult):

@@ -71,7 +71,10 @@ $(addsuffix .sample, ${APP_CFG_NAME_LIST}):%.sample:
 ## TEST ##
 ##########
 
-TEST_APP_CFG_FILE=${APP_CFG_DIR}/mnist_app.cfg
+TEST_APP_CFG_FILE=${APP_CFG_DIR}/check_app.cfg
+
+check0:
+	@make reset CFG_FILE=${TEST_APP_CFG_FILE}
 
 check1:
 	@make train CFG_FILE=${TEST_APP_CFG_FILE}

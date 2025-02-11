@@ -154,8 +154,7 @@ def _generate_testvector_for_matrix3d_input(npx_module:NpxModule, npx_define:Npx
 def generate_testvector(npx_define:NpxDefine, npx_data_manager:NpxDataManager, num_sample:int, sample_only:bool):
   print('\n[TEST VECTOR]', npx_define.app_name)
 
-  npx_module = NpxModule(app_cfg_path=npx_define.app_cfg_path, 
-                         neuron_type_str=npx_define.train_neuron_str).to(device)
+  npx_module = NpxModule(app_cfg_path=npx_define.app_cfg_path).to(device)
   npx_module.eval()
   riscv_parameter_path = npx_define.get_riscv_parameter_path(is_quantized=True)
   assert riscv_parameter_path.exists(), riscv_parameter_path
@@ -199,11 +198,14 @@ def manual_forward_pass(npx_module:NpxModule, data, tv_bin_path:Path=None):
     for i, layer in enumerate(npx_module.layer_sequence):
       last_tensor = layer(last_tensor)
       if type(layer) == nn.AvgPool2d:
-        last_tensor = last_tensor.to(torch.int32).to(torch.float)
+        #last_tensor = last_tensor.to(torch.int32).to(torch.float)
+        tv_tensor = last_tensor*layer.kernel_size*layer.kernel_size
+      else:
+        tv_tensor = last_tensor
 
       if tv_bin_path:
-        write_data_aligned_by_4bytes(tv_file, last_tensor, torch.int32)
-        line_list.append(str(last_tensor.tolist()))
+        write_data_aligned_by_4bytes(tv_file, tv_tensor, torch.int32)
+        line_list.append(str(tv_tensor.tolist()))
 
       prev_layer_type = type(layer)
 
