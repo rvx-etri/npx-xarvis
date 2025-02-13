@@ -45,7 +45,10 @@ class NpxTrainer():
     npx_data_manager.setup_loader(repeat_index)
     npx_define.parameter_dir_path.mkdir(parents=True, exist_ok=True)
     npx_module = self.module_class(app_cfg_path=npx_define.app_cfg_path).to(self.device)
-    self.optimizer = torch.optim.Adam(npx_module.parameters())
+    if npx_data_manager.name=='dvsgesture':
+      self.optimizer = torch.optim.Adam(npx_module.parameters(), lr=0.002, betas=(0.9, 0.999))
+    else:
+      self.optimizer = torch.optim.Adam(npx_module.parameters())    
 
     previous_epoch_index = -1
     previous_history_file = None
@@ -190,7 +193,7 @@ class NpxTrainer():
         result_list.append((epoch_index,val_result, test_result))
       line_list = []
       for epoch_index, val_result, test_result in result_list:
-        line_list.append(NpxTrainer.format_test_result(npx_define, npx_module.global_neuron_type_str, repeat_index, epoch_index, val_result, test_result))
+        line_list.append(NpxTrainer.format_test_result(npx_define, npx_module.global_config('neuron_type'), repeat_index, epoch_index, val_result, test_result))
       npx_define.get_report_path(repeat_index).write_text('\n'.join(line_list))
     return npx_module
 
@@ -225,7 +228,7 @@ if __name__ == '__main__':
   for app_cfg in app_cfg_list:
     app_cfg_path = Path(app_cfg)
     npx_define = NpxDefine(app_cfg_path=app_cfg_path, output_path=output_path)
-    npx_data_manager = NpxDataManager(npx_define=npx_define, dataset_path=dataset_path, num_kfold=npx_define.kfold)
+    npx_data_manager = NpxDataManager(npx_define=npx_define, dataset_path=dataset_path, kfold=npx_define.kfold)
     if 'reset' in cmd_list:
       if npx_define.app_dir_path.is_dir():
         shutil.rmtree(npx_define.app_dir_path)

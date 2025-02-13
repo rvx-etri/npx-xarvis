@@ -271,7 +271,7 @@ if __name__ == '__main__':
     app_cfg_path = Path(app_cfg)
     #print(app_cfg_path)
     npx_define = NpxDefine(app_cfg_path=app_cfg_path, output_path=output_path)
-    npx_data_manager = NpxDataManager(npx_define=npx_define, dataset_path=dataset_path, num_kfold=npx_define.kfold)
+    npx_data_manager = NpxDataManager(npx_define=npx_define, dataset_path=dataset_path, kfold=npx_define.kfold)
     if 'testvector' in cmd_list:
       generate_testvector(npx_define=npx_define, npx_data_manager=npx_data_manager, num_sample=num_sample, sample_only=args.sample_only)
     else:

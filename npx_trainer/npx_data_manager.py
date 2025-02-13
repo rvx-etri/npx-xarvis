@@ -29,16 +29,16 @@ def intstr_to_tuple(intstr):
   return tuple(int_list)
 
 class NpxDataManager():
-  def __init__(self, npx_define:NpxDefine, dataset_path:Path, num_kfold:int=None):
+  def __init__(self, npx_define:NpxDefine, dataset_path:Path, kfold:int=None):
 
     self.name = npx_define.cfg_parser.preprocess_info['input']
     assert self.name.endswith('_dataset'), self.name
     self.name = self.name[:-len('_dataset')]
     self.download_path = dataset_path / self.name
-    if num_kfold==None:
-      num_kfold = 5
-    assert num_kfold>=4, num_kfold
-    self.num_kfold = num_kfold
+    if kfold==None:
+      kfold = 5
+    assert kfold>=4, kfold
+    self.kfold = kfold
     self.fair_distribution = False
 
     self.download_path.mkdir(parents=True, exist_ok=True)
@@ -151,11 +151,11 @@ class NpxDataManager():
           labeled_dataset_dict[label] = [(data, label)]
       self.dataset_both_list = None
       for labeled_dataset in labeled_dataset_dict.values():
-        chunk_size = int(len(labeled_dataset)/self.num_kfold)
+        chunk_size = int(len(labeled_dataset)/self.kfold)
         chunk_size_list = []
-        for i in range(0, num_kfold-1):
+        for i in range(0, kfold-1):
           chunk_size_list.append(chunk_size)
-        last_chunk_size = len(labeled_dataset) - (chunk_size*(num_kfold-1))
+        last_chunk_size = len(labeled_dataset) - (chunk_size*(kfold-1))
         chunk_size_list.append(last_chunk_size)
         splited_labeled_dataset = torch.utils.data.random_split(labeled_dataset, chunk_size_list)
         if not self.dataset_both_list:
@@ -164,11 +164,11 @@ class NpxDataManager():
           for i in range(len(self.dataset_both_list)):
             self.dataset_both_list[i] += splited_labeled_dataset[i]
     else:
-      chunk_size = int(len(dataset_train_and_val)/self.num_kfold)
+      chunk_size = int(len(dataset_train_and_val)/self.kfold)
       chunk_size_list = []
-      for i in range(0, num_kfold-1):
+      for i in range(0, kfold-1):
         chunk_size_list.append(chunk_size)
-      last_chunk_size = len(dataset_train_and_val) - (chunk_size*(num_kfold-1))
+      last_chunk_size = len(dataset_train_and_val) - (chunk_size*(kfold-1))
       chunk_size_list.append(last_chunk_size)
       self.dataset_both_list = torch.utils.data.random_split(dataset_train_and_val, chunk_size_list)
 

@@ -245,6 +245,7 @@ class NpxCfgParser():
         out_channels = layer_info['input_info'].channels
         output_size = layer_info['input_info'].size
         
+        del layer_info['threshold']
         del layer_info['learn_threshold']
         del layer_info['mapped_fvalue']
         

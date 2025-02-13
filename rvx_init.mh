@@ -30,10 +30,12 @@ endif
 python_centos_manual:
 	#sudo yum install python2
 	sudo yum install zlib zlib-devel openssl openssl-devel bzip2-devel libffi-devel
+	sudo yum install tcl-devel tk-devel
 	make python_manual
 
 python_ubuntu_manual:
 	sudo apt install build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev libsqlite3-dev wget libbz2-dev
+	sudo apt install tk-dev
 	make python_manual
 
 python_manual:
@@ -43,7 +45,7 @@ python_manual:
 	fi
 	sudo rm -rf ./Python-${PYTHON3_VERSION_TO_INSTALL}
 	tar xvf Python-${PYTHON3_VERSION_TO_INSTALL}.tar.xz
-	cd ./Python-${PYTHON3_VERSION_TO_INSTALL}; ./configure --enable-shared; make; sudo make install
+	cd ./Python-${PYTHON3_VERSION_TO_INSTALL}; ./configure --enable-shared --with-tcltk-includes='-I/usr/include' --with-tcltk-libs='-L/usr/lib -ltcl -ltk'; make; sudo make install
 
 python_centos:
 	sudo yum install python3

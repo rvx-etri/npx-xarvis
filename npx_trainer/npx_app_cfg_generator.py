@@ -18,8 +18,7 @@ class NpxAppCfgGenerator():
 
   def generate_predifined_app(self, app_name:str, neuron_type_str:str, dataset_path:Path):
     self.app_name = f'{app_name}_{neuron_type_str}'
-    self.neuron_type = NpxNeuronType(neuron_type_str) if neuron_type_str else None
-    npx_data_manager = NpxDataManager(dataset_name=self.dataset_name, dataset_path=dataset_path, num_kfold=5)
+    npx_data_manager = NpxDataManager(dataset_name=self.dataset_name, dataset_path=dataset_path, kfold=5)
 
     # print(self.app_cfg_path)
     self.cfg_parser = NpxCfgParser()
@@ -169,7 +168,6 @@ class NpxAppCfgGenerator():
 
   def import_module(self, npx_module):
     self.app_name = npx_module.app_name
-    self.neuron_type = npx_module.global_neuron_type_str
     self.cfg_parser = copy.deepcopy(npx_module.cfg_parser)
 
   def __str__(self) -> str:

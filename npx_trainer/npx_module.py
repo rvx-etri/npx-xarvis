@@ -38,7 +38,7 @@ class PotentialResult():
   def __repr__(self):
     assert self.neuron_type
     return str((self.pacc,self.nacc,math.ceil(self.max/self.neuron_type.qscale)))
-
+  
 class NpxModule(nn.Module):
   def __init__(self, app_cfg_path:Path, neuron_type_class=NpxNeuronType):
     super().__init__()
@@ -48,20 +48,13 @@ class NpxModule(nn.Module):
       self.cfg_parser = NpxCfgParser()
       self.cfg_parser.parse_file(self.app_cfg_path)
       
-      self.init_global_info()      
       self.layer_sequence = []
       self.gen_layer_sequence(self.cfg_parser.layer_info_list)
       # print(net_option, layer_option_list)
-    self.is_quantized = False
+    self.is_network_quantized = False
   
-  def init_global_info(self):
-    global_dict = self.cfg_parser.global_info
-    if not global_dict:
-      global_dict = {}
-      
-    self.global_neuron_type_str = global_dict.get('neuron_type', 'q8ssf')
-    self.global_mapped_fvalue = global_dict.get('mapped_fvalue', None)
-    self.global_can_learn_neural_threshold = global_dict.get('can_learn_neural_threshold', False)
+  def global_config(self, option_name:str):
+    return self.cfg_parser.global_info.get(option_name)
       
   @property
   def app_name(self):
@@ -115,19 +108,20 @@ class NpxModule(nn.Module):
   def forward_layer(self, i:int, layer, x:Tensor):
     if self.training and layer.neuron_type:
       original_tensor = copy.deepcopy(layer.weight.data)
+      layer.neuron_type.update_ftarget(layer.weight.data)
       qtensor = layer.neuron_type.quantize_tensor(layer.weight.data, bounded=True)
       layer.weight.data = layer.neuron_type.dequantize_tensor(qtensor)
     current = layer(x)
     if self.training and layer.neuron_type:
       layer.weight.data = original_tensor
-      layer.neuron_type.clamp_weight_(layer.weight.data, self.is_quantized)
+      layer.neuron_type.clamp_weight_(layer.weight.data, self.is_network_quantized)
     return current
       
   def forward_neuron(self, i:int, neuron, x:Tensor):
     #if self.training and self.can_learn_neural_threshold and self.does_neuron_learn_threshold(neuron):
     current = neuron(x)
     if neuron.neuron_type:
-      neuron.neuron_type.clamp_mem_(neuron.mem, self.is_quantized)
+      neuron.neuron_type.clamp_mem_(neuron.mem, self.is_network_quantized)
     return current
       
   def print_parameter(self):
@@ -139,7 +133,7 @@ class NpxModule(nn.Module):
 
   def quantize_network(self):
     assert not self.training
-    self.is_quantized = True
+    self.is_network_quantized = True
     for layer in self.layer_sequence:
       if (type(layer)==nn.Linear) or (type(layer)==nn.Conv2d):
         qtensor = layer.neuron_type.quantize_tensor(layer.weight.data, bounded=True)
@@ -157,6 +151,19 @@ class NpxModule(nn.Module):
       elif type(layer)==snntorch.Leaky:
         line_list.append(str(layer.threshold.tolist()))
     path.write_text('\n'.join(line_list))
+  
+  def dicide_option_value(self, layer_option:dict, option_name:str, default_value):
+    global_value = self.global_config(option_name)
+    local_value = layer_option.get(option_name)
+    if local_value!=None:
+      result = local_value
+    elif global_value!=None:
+      result = global_value
+    else:
+      result = default_value
+    assert result!=None
+    layer_option[option_name] = result
+    return result
 
   def gen_layer_sequence(self, layer_option_list):
     #num_layer = len(layer_option_list)
@@ -225,24 +232,28 @@ class NpxModule(nn.Module):
     assert len(not_assigned_layer_list)==0
 
   def make_neuron(self, layer_option, neuron_output):
-    beta = layer_option.setdefault('beta', 1.0)
-    reset_mechanism = layer_option.setdefault('reset_mechanism', 'zero')
-    #threshold = layer_option.setdefault('threshold', 1.0)
-    threshold = 1.0
-    #spike_grad = surrogate.fast_sigmoid(slope=25)
-    neuron_type_str = layer_option.setdefault('neuron_type', self.global_neuron_type_str)
+    beta = self.dicide_option_value(layer_option, 'beta', 1.0)
+    beta_denominator = float(256)
+    beta_numerator = int(beta*beta_denominator)
+    beta = beta_numerator / beta_denominator
+    layer_option['beta'] = beta
+    reset_mechanism = self.dicide_option_value(layer_option, 'reset_mechanism', 'subtract')
+    threshold = self.dicide_option_value(layer_option, 'threshold', 1.0)
+    spike_grad = surrogate.fast_sigmoid(slope=25)
+    neuron_type_str = self.dicide_option_value(layer_option, 'neuron_type', 'q8ssf')
     neuron_type = self.neuron_type_class(neuron_type_str)
-    mapped_fvalue = layer_option.get('mapped_fvalue', self.global_mapped_fvalue)
+    
+    mapped_fvalue = self.dicide_option_value(layer_option, 'mapped_fvalue', neuron_type.mapped_fvalue)
     neuron_type.update_mapped_fvalue(mapped_fvalue)
     layer_option['mapped_fvalue'] = neuron_type.mapped_fvalue
     
     if neuron_type.can_learn_threshold:
-      learn_threshold = layer_option.setdefault('learn_threshold', self.global_can_learn_neural_threshold)
+      learn_threshold = self.dicide_option_value(layer_option, 'learn_threshold', False)
     else:
       layer_option['learn_threshold'] = False
       learn_threshold = False
       
-    neuron = snntorch.Leaky(beta=beta, threshold=threshold, init_hidden=True, #spike_grad=spike_grad,
+    neuron = snntorch.Leaky(beta=beta, spike_grad=spike_grad, threshold=threshold, init_hidden=True, reset_delay=False,
                 reset_mechanism=reset_mechanism, learn_threshold=learn_threshold, output=neuron_output)
     neuron.neuron_type = neuron_type
     

@@ -131,7 +131,6 @@ class NpxNeuronType():
       self.mapped_fvalue = float(x.abs().max())
 
   def quantize_tensor(self, x:Tensor, bounded:bool):
-    self.update_ftarget(x)
     qx = x*self.qfactor
     if bounded:
       qx.clamp_(self.qmin, self.qmax)

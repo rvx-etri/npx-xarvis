@@ -49,6 +49,8 @@ APP_CFG_NAME_LIST=$(basename $(notdir ${APP_CFG_LIST}))
 app_list:
 	@echo ${APP_CFG_NAME_LIST}
 
+${APP_CFG_NAME_LIST}:%: %.train %.test
+
 $(addsuffix .train, ${APP_CFG_NAME_LIST}):%.train:
 	@make train CFG_FILE=${APP_CFG_DIR}/$(*).cfg
 
