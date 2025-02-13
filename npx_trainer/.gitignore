@@ -60,4 +60,5 @@ rvx_*.cfg
 rvx_python_config.mh
 .rvx_*
 
+app/*_temp.cfg
 result

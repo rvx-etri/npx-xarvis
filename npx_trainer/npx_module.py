@@ -239,7 +239,7 @@ class NpxModule(nn.Module):
     layer_option['beta'] = beta
     reset_mechanism = self.dicide_option_value(layer_option, 'reset_mechanism', 'subtract')
     threshold = self.dicide_option_value(layer_option, 'threshold', 1.0)
-    spike_grad = surrogate.fast_sigmoid(slope=25)
+    reset_delay = self.dicide_option_value(layer_option, 'reset_delay', True)
     neuron_type_str = self.dicide_option_value(layer_option, 'neuron_type', 'q8ssf')
     neuron_type = self.neuron_type_class(neuron_type_str)
     
@@ -253,7 +253,8 @@ class NpxModule(nn.Module):
       layer_option['learn_threshold'] = False
       learn_threshold = False
       
-    neuron = snntorch.Leaky(beta=beta, spike_grad=spike_grad, threshold=threshold, init_hidden=True, reset_delay=False,
+    spike_grad = surrogate.fast_sigmoid(slope=25)
+    neuron = snntorch.Leaky(beta=beta, spike_grad=spike_grad, threshold=threshold, init_hidden=True, reset_delay=reset_delay,
                 reset_mechanism=reset_mechanism, learn_threshold=learn_threshold, output=neuron_output)
     neuron.neuron_type = neuron_type
     
