@@ -21,7 +21,9 @@ class NpxCfgSection(dict):
       return text
   
   def add_option(self, line:str):
-    key, value = line.strip().split('=')
+    key, value = line.split('=')
+    key = key.strip()
+    value = value.strip()
     self[key] = NpxCfgSection.convert_value(value)
   
   def __str__(self) -> str:
@@ -187,7 +189,7 @@ class NpxCfgParser():
   def generate_preprocess_output_info(self):
     assert self.preprocess_info
     assert self.train_info
-    if self.preprocess_info['input']=='mnist_dataset':
+    if self.preprocess_info['input']=='mnist_dataset' or self.preprocess_info['input']=='kmnist_dataset' or self.preprocess_info['input']=='fmnist_dataset':
       if self.preprocess_info['step_generation']=='direct':
         scale = 1
         datatype = DataType(SignedType.UNSIGNED, NumberType.DISCR, scale)

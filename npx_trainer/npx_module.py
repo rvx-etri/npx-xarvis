@@ -120,8 +120,9 @@ class NpxModule(nn.Module):
   def forward_neuron(self, i:int, neuron, x:Tensor):
     #if self.training and self.can_learn_neural_threshold and self.does_neuron_learn_threshold(neuron):
     current = neuron(x)
-    if neuron.neuron_type:
-      neuron.neuron_type.clamp_mem_(neuron.mem, self.is_network_quantized)
+    neuron_type:NpxNeuronType = neuron.neuron_type
+    if neuron_type:
+      neuron_type.clamp_mem_(neuron.mem, self.is_network_quantized)
     return current
       
   def print_parameter(self):
@@ -230,16 +231,14 @@ class NpxModule(nn.Module):
       self.add_module('layer' + str(i), layer)
       self.layer_sequence.append(layer)
     assert len(not_assigned_layer_list)==0
+    
+  def quantize_beta(self, beta:float):
+    denominator = 256
+    beta_numerator = int(beta*denominator)
+    result = float(beta_numerator) / denominator
+    return result
 
   def make_neuron(self, layer_option, neuron_output):
-    beta = self.dicide_option_value(layer_option, 'beta', 1.0)
-    beta_denominator = float(256)
-    beta_numerator = int(beta*beta_denominator)
-    beta = beta_numerator / beta_denominator
-    layer_option['beta'] = beta
-    reset_mechanism = self.dicide_option_value(layer_option, 'reset_mechanism', 'subtract')
-    threshold = self.dicide_option_value(layer_option, 'threshold', 1.0)
-    reset_delay = self.dicide_option_value(layer_option, 'reset_delay', True)
     neuron_type_str = self.dicide_option_value(layer_option, 'neuron_type', 'q8ssf')
     neuron_type = self.neuron_type_class(neuron_type_str)
     
@@ -247,6 +246,21 @@ class NpxModule(nn.Module):
     neuron_type.update_mapped_fvalue(mapped_fvalue)
     layer_option['mapped_fvalue'] = neuron_type.mapped_fvalue
     
+    beta = self.dicide_option_value(layer_option, 'beta', 1.0)
+    beta = self.quantize_beta(beta)
+    layer_option['beta'] = beta
+    
+    if neuron_type.can_learn_beta:
+      learn_beta = self.dicide_option_value(layer_option, 'learn_beta', False)
+    else:
+      layer_option['learn_beta'] = False
+      learn_beta = False
+    assert not learn_beta
+    
+    reset_mechanism = self.dicide_option_value(layer_option, 'reset_mechanism', 'subtract')    
+    reset_delay = self.dicide_option_value(layer_option, 'reset_delay', True)
+    
+    threshold = self.dicide_option_value(layer_option, 'threshold', 1.0)
     if neuron_type.can_learn_threshold:
       learn_threshold = self.dicide_option_value(layer_option, 'learn_threshold', False)
     else:
@@ -254,8 +268,8 @@ class NpxModule(nn.Module):
       learn_threshold = False
       
     spike_grad = surrogate.fast_sigmoid(slope=25)
-    neuron = snntorch.Leaky(beta=beta, spike_grad=spike_grad, threshold=threshold, init_hidden=True, reset_delay=reset_delay,
-                reset_mechanism=reset_mechanism, learn_threshold=learn_threshold, output=neuron_output)
+    neuron = snntorch.Leaky(beta=beta, learn_beta=learn_beta, spike_grad=spike_grad, threshold=threshold, learn_threshold=learn_threshold,
+                            init_hidden=True, reset_delay=reset_delay, reset_mechanism=reset_mechanism, output=neuron_output)
     neuron.neuron_type = neuron_type
     
     return neuron

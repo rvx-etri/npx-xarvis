@@ -125,6 +125,9 @@ class NpxNeuronType():
   
   def can_learn_threshold(self):
     return self.is_infinite_potential
+
+  def can_learn_beta(self):
+    return False
   
   def update_ftarget(self, x:Tensor):
     if self.is_ftarget_updatable:
