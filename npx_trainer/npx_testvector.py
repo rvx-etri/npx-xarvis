@@ -112,7 +112,7 @@ def _generate_testvector_for_matrix3d_input(npx_module:NpxModule, npx_define:Npx
 
   spike_input = False
   for i, (data, target) in enumerate(sample_list):
-    data = torch.unsqueeze(data, dim=1).to(device)
+    data = torch.unsqueeze(data, dim=0).to(device)
     raw_data = (data*255).round()
     target = torch.Tensor([target]).to(torch.int32).numpy()
     #target = target.to(torch.int32).numpy()
@@ -175,7 +175,8 @@ debug_print_layer_outout = False
 def scale_threshold_for_first_leaky_layer(npx_module:NpxModule, scale:float=1.0):
   for i, layer in enumerate(npx_module.layer_sequence):
     if type(layer)==snntorch.Leaky:
-      layer.threshold *= scale
+      with torch.no_grad():
+        layer.threshold *= scale
       break
 
 # for saving test vector

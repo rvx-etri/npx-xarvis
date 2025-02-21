@@ -115,7 +115,7 @@ class NpxDataManager():
       #value = NpxCfgParser.find_option_value(npx_define.cfg_parser.train_info, 'resize', '32,32')
       #self.resize = intstr_to_tuple(value)
       transform = transforms.Compose([
-        #transforms.Resize((32, 32)),
+        transforms.Resize((32, 32)),
         #transforms.Resize(self.resize),
         transforms.ToTensor(),
         transforms.Normalize((0, 0, 0), (1, 1, 1))])

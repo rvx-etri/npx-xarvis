@@ -7,10 +7,17 @@ from tqdm.auto import tqdm
 from collections import namedtuple
 from torchvision.transforms import Resize
 import torch.nn as nn
+import torch.nn.init as init
 
 from npx_define import *
 from npx_data_manager import *
 from npx_module import *
+
+def init_weights(m):
+  if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+    init.kaiming_normal_(m.weight, mode='fan_in', nonlinearity='relu')
+    if m.bias is not None:
+      init.constant_(m.bias, 0.1)
 
 class NpxTrainer():
   def __init__(self, module_class=NpxModule, gpu_id:str='-1'):
@@ -45,6 +52,7 @@ class NpxTrainer():
     npx_data_manager.setup_loader(repeat_index)
     npx_define.parameter_dir_path.mkdir(parents=True, exist_ok=True)
     npx_module = self.module_class(app_cfg_path=npx_define.app_cfg_path).to(self.device)
+    #npx_module.apply(init_weights)
     if npx_data_manager.name=='dvsgesture':
       self.optimizer = torch.optim.Adam(npx_module.parameters(), lr=0.002, betas=(0.9, 0.999))
     else:

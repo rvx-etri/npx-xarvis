@@ -267,7 +267,8 @@ class NpxModule(nn.Module):
       layer_option['learn_threshold'] = False
       learn_threshold = False
       
-    spike_grad = surrogate.fast_sigmoid(slope=25)
+    #spike_grad = surrogate.fast_sigmoid(slope=25)
+    spike_grad = None
     neuron = snntorch.Leaky(beta=beta, learn_beta=learn_beta, spike_grad=spike_grad, threshold=threshold, learn_threshold=learn_threshold,
                             init_hidden=True, reset_delay=reset_delay, reset_mechanism=reset_mechanism, output=neuron_output)
     neuron.neuron_type = neuron_type
