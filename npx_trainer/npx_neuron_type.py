@@ -37,25 +37,34 @@ class NpxNeuronType():
     
     if feature_str[2]=='f':
       self.is_infinite_potential = False
-      self.is_ftarget_updatable  = False
+      self.is_mapped_fvalue_updatable  = False
     elif feature_str[2]=='i':
       self.is_infinite_potential = True
-      self.is_ftarget_updatable  = False
+      self.is_mapped_fvalue_updatable  = False
     elif feature_str[2]=='u':
       self.is_infinite_potential = True
-      self.is_ftarget_updatable  = True
+      self.is_mapped_fvalue_updatable  = True
     else:
       assert 0
     
     if self.is_infinite_potential:
-      self.mapped_fvalue = 0.5
+      self._mapped_fvalue = 0.5
     else:
-      self.mapped_fvalue = 1.0
+      self._mapped_fvalue = 1.0
+  
+  @property
+  def mapped_fvalue(self):
+    return self._mapped_fvalue
+  
+  @mapped_fvalue.setter
+  def mapped_fvalue(self, mapped_fvalue):
+    if self.is_infinite_potential:
+      self._mapped_fvalue = mapped_fvalue
     
   def update_mapped_fvalue(self, fvalue:float):
     if fvalue and self.is_infinite_potential:
       assert fvalue > 0, fvalue
-      self.mapped_fvalue = fvalue
+      self._mapped_fvalue = fvalue
             
   def __repr__(self):
     result = (self.num_bits, self.is_signed_weight, self.is_signed_potential, self.is_infinite_potential)
@@ -71,7 +80,7 @@ class NpxNeuronType():
     result = ''
     result += 's' if self.is_signed_weight else 'u'
     result += 's' if self.is_signed_potential else 'u'
-    if self.is_ftarget_updatable:
+    if self.is_mapped_fvalue_updatable:
       result += 'u'
     elif self.is_infinite_potential:
       result += 'i'
@@ -113,25 +122,29 @@ class NpxNeuronType():
   
   @property
   def qfactor(self):
-    return float(self.qscale)/self.mapped_fvalue
+    return float(self.qscale)/self._mapped_fvalue
   
   @property
   def qfactor(self):
-    return float(self.qscale)/self.mapped_fvalue
+    return float(self.qscale)/self._mapped_fvalue
   
   @property
   def dqfactor(self):
-    return self.mapped_fvalue / self.qscale
+    return self._mapped_fvalue / self.qscale
   
   def can_learn_threshold(self):
-    return self.is_infinite_potential
+    return True
 
   def can_learn_beta(self):
     return False
   
-  def update_ftarget(self, x:Tensor):
-    if self.is_ftarget_updatable:
-      self.mapped_fvalue = float(x.abs().max())
+  def update_mapped_fvalue(self, x:Tensor):
+    if self.is_mapped_fvalue_updatable:
+      self._mapped_fvalue = float(x.abs().max())
+  
+  def synch_with_threshold(self, x:Tensor):
+    if not self.is_infinite_potential:
+      self._mapped_fvalue = float(x)
 
   def quantize_tensor(self, x:Tensor, bounded:bool):
     qx = x*self.qfactor

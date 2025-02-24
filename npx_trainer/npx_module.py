@@ -108,7 +108,8 @@ class NpxModule(nn.Module):
   def forward_layer(self, i:int, layer, x:Tensor):
     if self.training and layer.neuron_type:
       original_tensor = copy.deepcopy(layer.weight.data)
-      layer.neuron_type.update_ftarget(layer.weight.data)
+      layer.neuron_type.synch_with_threshold(layer.neuron.threshold)
+      layer.neuron_type.update_mapped_fvalue(layer.weight.data)
       qtensor = layer.neuron_type.quantize_tensor(layer.weight.data, bounded=True)
       layer.weight.data = layer.neuron_type.dequantize_tensor(qtensor)
     current = layer(x)
@@ -221,6 +222,7 @@ class NpxModule(nn.Module):
         layer = self.make_neuron(layer_option, False)
         assert layer.neuron_type
         for previous_layer, previous_layer_option in not_assigned_layer_list:
+          previous_layer.neuron = layer
           previous_layer.neuron_type = layer.neuron_type
           assert 'neuron_type' not in previous_layer_option
           previous_layer_option['neuron_type'] = layer.neuron_type.name
@@ -243,7 +245,7 @@ class NpxModule(nn.Module):
     neuron_type = self.neuron_type_class(neuron_type_str)
     
     mapped_fvalue = self.dicide_option_value(layer_option, 'mapped_fvalue', neuron_type.mapped_fvalue)
-    neuron_type.update_mapped_fvalue(mapped_fvalue)
+    neuron_type.mapped_fvalue = mapped_fvalue
     layer_option['mapped_fvalue'] = neuron_type.mapped_fvalue
     
     beta = self.dicide_option_value(layer_option, 'beta', 1.0)
