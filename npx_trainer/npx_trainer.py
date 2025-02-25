@@ -77,7 +77,7 @@ class NpxTrainer():
       self.train_once(npx_module=npx_module, npx_data_manager=npx_data_manager, epoch_index=epoch_index)
       self.save_checkpoint(npx_module, self.optimizer, npx_define.get_parameter_path(repeat_index,epoch_index, False))
       #torch.save(npx_module.state_dict(), npx_define.get_parameter_path(repeat_index,epoch_index, False))
-      result = self.test_once(npx_module, npx_data_manager)
+      result = self.test_once(npx_module, npx_data_manager.test_loader, npx_data_manager.data_format)
       NpxDefine.print_test_result(result)
 
   def train_once(self, npx_module:NpxModule, npx_data_manager:NpxDataManager, epoch_index:int):
@@ -106,7 +106,7 @@ class NpxTrainer():
           epoch_index, batch_idx * len(data), len(npx_data_manager.train_loader.dataset),
           100. * batch_idx / len(npx_data_manager.train_loader), loss_val.item()))
   
-  def test_once(self, npx_module:NpxModule, npx_data_manager:NpxDataManager):
+  def test_once(self, npx_module:NpxModule, data_loader, data_format):
     npx_module.eval()
     total = 0
     acc = 0
@@ -116,7 +116,7 @@ class NpxTrainer():
     #model_size = os.path.getsize("tmp.pth") / 1e6
     #os.remove("tmp.pth")
     with torch.no_grad():
-      for data, target in tqdm(npx_data_manager.test_loader):
+      for data, target in tqdm(data_loader):
         data, target = data.to(self.device), target.to(self.device)
         if npx_module.input_size != data.shape[-2:]:
           if data.dim() == 5:
@@ -126,7 +126,7 @@ class NpxTrainer():
           data = nn.functional.interpolate(data, size=size)
           #data = nn.functional.interpolate(data, size=size, mode='bilinear')
         cur = time.time()
-        spk_rec = self.forward_pass(npx_module, data, npx_data_manager.data_format)
+        spk_rec = self.forward_pass(npx_module, data, data_format)
 
         acc += SF.accuracy_rate(spk_rec, target) * spk_rec.size(1)
 
@@ -193,10 +193,10 @@ class NpxTrainer():
       for history_parameter_path in sorted(npx_define.parameter_dir_path.glob(npx_define.get_parameter_filename_pattern(repeat_index, True)),reverse=True):
         self.load_checkpoint(npx_module,None,history_parameter_path)
         #npx_module.load_state_dict(torch.load(history_parameter_path))
-        val_result = self.test_once(npx_module, npx_data_manager)
+        val_result = self.test_once(npx_module, npx_data_manager.val_loader, npx_data_manager.data_format)
         self.load_checkpoint(npx_module,None,history_parameter_path)
         #npx_module.load_state_dict(torch.load(history_parameter_path))
-        test_result = self.test_once(npx_module, npx_data_manager)
+        test_result = self.test_once(npx_module, npx_data_manager.test_loader, npx_data_manager.data_format)
         epoch_index = npx_define.get_epoch_index_from_parameter_path(history_parameter_path)
         result_list.append((epoch_index,val_result, test_result))
       line_list = []

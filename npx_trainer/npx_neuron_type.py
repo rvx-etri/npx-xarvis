@@ -136,7 +136,7 @@ class NpxNeuronType():
     return True
 
   def can_learn_beta(self):
-    return False
+    return True
   
   def update_mapped_fvalue(self, x:Tensor):
     if self.is_mapped_fvalue_updatable:

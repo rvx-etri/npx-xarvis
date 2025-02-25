@@ -4,6 +4,7 @@ import numpy as np
 import torch
 from torch.utils.data.dataloader import DataLoader
 from torchvision import datasets, transforms
+from torch.utils.data import ConcatDataset
 
 import tonic
 
@@ -46,9 +47,9 @@ class NpxDataManager():
     if self.name=='mnist':
       self.raw_data_format = DataFormat.MATRIX3D
       self.data_format = DataFormat.MATRIX3D
-      self.step_generation = npx_define.cfg_parser.train_info.setdefault('step_generation','direct')
-      self.timesteps = npx_define.cfg_parser.train_info.setdefault('timesteps',4)
-      #value = NpxCfgParser.find_option_value(npx_define.cfg_parser.train_info, 'resize', '14,14')
+      self.step_generation = npx_define.cfg_parser.preprocess_info.setdefault('step_generation','direct')
+      self.timesteps = npx_define.cfg_parser.preprocess_info.setdefault('timesteps',4)
+      #value = NpxCfgParser.find_option_value(npx_define.cfg_parser.preprocess_info, 'resize', '14,14')
       #self.resize = intstr_to_tuple(value)
       transform = transforms.Compose([
         #transforms.Resize((14, 14)),
@@ -61,9 +62,9 @@ class NpxDataManager():
     elif self.name=='kmnist':
       self.raw_data_format = DataFormat.MATRIX3D
       self.data_format = DataFormat.MATRIX3D
-      self.step_generation = npx_define.cfg_parser.train_info.setdefault('step_generation','direct')
-      self.timesteps = npx_define.cfg_parser.train_info.setdefault('timesteps',4)
-      #value = NpxCfgParser.find_option_value(npx_define.cfg_parser.train_info, 'resize', '14,14')
+      self.step_generation = npx_define.cfg_parser.preprocess_info.setdefault('step_generation','direct')
+      self.timesteps = npx_define.cfg_parser.preprocess_info.setdefault('timesteps',4)
+      #value = NpxCfgParser.find_option_value(npx_define.cfg_parser.preprocess_info, 'resize', '14,14')
       #self.resize = intstr_to_tuple(value)
       transform = transforms.Compose([
         #transforms.Resize((14, 14)),
@@ -76,9 +77,9 @@ class NpxDataManager():
     elif self.name=='fmnist':
       self.raw_data_format = DataFormat.MATRIX3D
       self.data_format = DataFormat.MATRIX3D
-      self.step_generation = npx_define.cfg_parser.train_info.setdefault('step_generation','direct')
-      self.timesteps = npx_define.cfg_parser.train_info.setdefault('timesteps',4)
-      #value = NpxCfgParser.find_option_value(npx_define.cfg_parser.train_info, 'resize', '14,14')
+      self.step_generation = npx_define.cfg_parser.preprocess_info.setdefault('step_generation','direct')
+      self.timesteps = npx_define.cfg_parser.preprocess_info.setdefault('timesteps',4)
+      #value = NpxCfgParser.find_option_value(npx_define.cfg_parser.preprocess_info, 'resize', '14,14')
       #self.resize = intstr_to_tuple(value)
       transform = transforms.Compose([
         #transforms.Resize((14, 14)),
@@ -96,9 +97,9 @@ class NpxDataManager():
     elif self.name=='cifar10':
       self.raw_data_format = DataFormat.MATRIX3D
       self.data_format = DataFormat.MATRIX3D
-      self.step_generation = npx_define.cfg_parser.train_info.setdefault('step_generation','direct')
-      self.timesteps = npx_define.cfg_parser.train_info.setdefault('timesteps',4)
-      #value = NpxCfgParser.find_option_value(npx_define.cfg_parser.train_info, 'resize', '32,32')
+      self.step_generation = npx_define.cfg_parser.preprocess_info.setdefault('step_generation','direct')
+      self.timesteps = npx_define.cfg_parser.preprocess_info.setdefault('timesteps',4)
+      #value = NpxCfgParser.find_option_value(npx_define.cfg_parser.preprocess_info, 'resize', '32,32')
       #self.resize = intstr_to_tuple(value)
       transform = transforms.Compose([
         #transforms.Resize((32, 32)),
@@ -110,9 +111,9 @@ class NpxDataManager():
     elif self.name=='gtsrb':
       self.raw_data_format = DataFormat.MATRIX3D
       self.data_format = DataFormat.MATRIX3D
-      self.step_generation = npx_define.cfg_parser.train_info.setdefault('step_generation','direct')
-      self.timesteps = npx_define.cfg_parser.train_info.setdefault('timesteps',4)
-      #value = NpxCfgParser.find_option_value(npx_define.cfg_parser.train_info, 'resize', '32,32')
+      self.step_generation = npx_define.cfg_parser.preprocess_info.setdefault('step_generation','direct')
+      self.timesteps = npx_define.cfg_parser.preprocess_info.setdefault('timesteps',4)
+      #value = NpxCfgParser.find_option_value(npx_define.cfg_parser.preprocess_info, 'resize', '32,32')
       #self.resize = intstr_to_tuple(value)
       transform = transforms.Compose([
         transforms.Resize((32, 32)),
@@ -126,10 +127,10 @@ class NpxDataManager():
       self.data_format = DataFormat.MATRIX4D
       self.sensor_size = tonic.datasets.DVSGesture.sensor_size
       #denoise_transform = tonic.transforms.Denoise(filter_time=10000)
-      #value = NpxCfgParser.find_option_value(npx_define.cfg_parser.train_info, 'resize', '128,128')
+      #value = NpxCfgParser.find_option_value(npx_define.cfg_parser.preprocess_info, 'resize', '128,128')
       #self.resize = intstr_to_tuple(value)
       #self.resize = (2,) + self.resize
-      self.timesteps = npx_define.cfg_parser.train_info.setdefault('timesteps',25)
+      self.timesteps = npx_define.cfg_parser.preprocess_info.setdefault('timesteps',32)
       frame_transform = tonic.transforms.ToFrame(sensor_size=self.sensor_size, n_time_bins=self.timesteps)
       all_transform = transforms.Compose([
         frame_transform])
@@ -175,13 +176,10 @@ class NpxDataManager():
   def setup_loader(self, kfold_index:int, batch_size:int=100):
     assert kfold_index <= len(self.dataset_both_list), len(self.dataset_both_list)
     self.dataset_val = self.dataset_both_list[kfold_index]
-    for i, dataset_chunk in enumerate(self.dataset_both_list):
-      if i==0:
-        self.dataset_train = dataset_chunk
-      elif i==kfold_index:
-        pass
-      else:
-        self.dataset_train += dataset_chunk
+    dataset_train_subset_list = self.dataset_both_list[:kfold_index] + self.dataset_both_list[kfold_index+1:]
+    self.dataset_train = ConcatDataset(dataset_train_subset_list)
+    print('The number of train dataset:', len(self.dataset_train))
+    print('The number of valid dataset:', len(self.dataset_val))
     if self.name=='dvsgesture':
       collate_fn = tonic.collation.PadTensors(batch_first=False)
     else:

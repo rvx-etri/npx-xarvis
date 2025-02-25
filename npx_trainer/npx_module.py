@@ -257,7 +257,6 @@ class NpxModule(nn.Module):
     else:
       layer_option['learn_beta'] = False
       learn_beta = False
-    assert not learn_beta
     
     reset_mechanism = self.dicide_option_value(layer_option, 'reset_mechanism', 'subtract')    
     reset_delay = self.dicide_option_value(layer_option, 'reset_delay', True)
