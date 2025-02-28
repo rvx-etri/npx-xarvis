@@ -124,6 +124,8 @@ class NpxModule(nn.Module):
     neuron_type:NpxNeuronType = neuron.neuron_type
     if neuron_type:
       neuron_type.clamp_mem_(neuron.mem, self.is_network_quantized)
+      if neuron_type.learn_beta:
+        neuron.beta.data.fill_(neuron_type.quantize_beta(neuron.beta.data.float()))
     return current
       
   def print_parameter(self):
@@ -152,6 +154,7 @@ class NpxModule(nn.Module):
         line_list.append(str(layer.weight.tolist()))
       elif type(layer)==snntorch.Leaky:
         line_list.append(str(layer.threshold.tolist()))
+        line_list.append(str(layer.beta.tolist()))
     path.write_text('\n'.join(line_list))
   
   def dicide_option_value(self, layer_option:dict, option_name:str, default_value):
@@ -233,12 +236,6 @@ class NpxModule(nn.Module):
       self.add_module('layer' + str(i), layer)
       self.layer_sequence.append(layer)
     assert len(not_assigned_layer_list)==0
-    
-  def quantize_beta(self, beta:float):
-    denominator = 256
-    beta_numerator = int(beta*denominator)
-    result = float(beta_numerator) / denominator
-    return result
 
   def make_neuron(self, layer_option, neuron_output):
     neuron_type_str = self.dicide_option_value(layer_option, 'neuron_type', 'q8ssf')
@@ -249,14 +246,14 @@ class NpxModule(nn.Module):
     layer_option['mapped_fvalue'] = neuron_type.mapped_fvalue
     
     beta = self.dicide_option_value(layer_option, 'beta', 1.0)
-    beta = self.quantize_beta(beta)
+    beta = neuron_type.quantize_beta(beta)
     layer_option['beta'] = beta
     
     if neuron_type.can_learn_beta:
       learn_beta = self.dicide_option_value(layer_option, 'learn_beta', False)
     else:
       layer_option['learn_beta'] = False
-      learn_beta = False
+    neuron_type.learn_beta = learn_beta
     
     reset_mechanism = self.dicide_option_value(layer_option, 'reset_mechanism', 'subtract')    
     reset_delay = self.dicide_option_value(layer_option, 'reset_delay', True)
@@ -267,6 +264,7 @@ class NpxModule(nn.Module):
     else:
       layer_option['learn_threshold'] = False
       learn_threshold = False
+    neuron_type.learn_threshold = learn_threshold
       
     #spike_grad = surrogate.fast_sigmoid(slope=25)
     spike_grad = None

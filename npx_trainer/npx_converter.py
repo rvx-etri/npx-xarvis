@@ -3,6 +3,7 @@ import argparse
 from pathlib import *
 import numpy as np
 import pickle
+import struct
 
 from npx_define import *
 from npx_module import *
@@ -82,26 +83,34 @@ def write_parameter_to_binaryfile(npx_module:NpxModule, bin_path:Path):
       elif type(layer)==snntorch.Leaky:
         threshold = layer.threshold
         write_data_aligned_by_4bytes(bin_file, threshold, torch.int32)
+        beta = layer.beta
+        write_data_aligned_by_4bytes(bin_file, beta, torch.float32)
 
 def write_data_aligned_by_4bytes(file_io, data:torch.Tensor, data_type:torch.dtype):
-  data = data.to('cpu').to(data_type).numpy().reshape(-1)
-  #data = data.to('cpu').round().to(data_type).numpy().reshape(-1)
-  lenth = data.shape[0]
-  fill_len = 0
-  if (data_type == torch.int8) | (data_type == torch.uint8) :
-    if (lenth%4) > 0 :
-      fill_len = 4 - (lenth%4)
-  elif (data_type == torch.int16) :
-    if (lenth%2) > 0 :
-      fill_len = 2 - (lenth%2)
-  elif (data_type == torch.int32) :
+  assert(data.dtype==torch.float32)
+  if data_type==torch.float32:
+    with torch.no_grad():
+      #data = [struct.unpack('!I', struct.pack('!f', val))[0] for val in data.numpy().reshape(-1)]
+      data = np.array([struct.unpack('!I', struct.pack('!f', val))[0] for val in data.numpy().reshape(-1)], dtype=np.uint32)
+  else:
+    data = data.to('cpu').to(data_type).numpy().reshape(-1)
+    #data = data.to('cpu').round().to(data_type).numpy().reshape(-1)
+    lenth = data.shape[0]
     fill_len = 0
-  else :
-    print(f'unsupported type {data_type} in write_data_aligned_by_4bytes')
-    return
-  if fill_len > 0:
-    fill_data = np.zeros(fill_len, dtype=data.dtype)
-    data = np.append(data, fill_data)
+    if (data_type == torch.int8) | (data_type == torch.uint8) :
+      if (lenth%4) > 0 :
+        fill_len = 4 - (lenth%4)
+    elif (data_type == torch.int16) :
+      if (lenth%2) > 0 :
+        fill_len = 2 - (lenth%2)
+    elif (data_type == torch.int32) :
+      fill_len = 0
+    else :
+      print(f'unsupported type {data_type} in write_data_aligned_by_4bytes')
+      return
+    if fill_len > 0:
+      fill_data = np.zeros(fill_len, dtype=data.dtype)
+      data = np.append(data, fill_data)
   file_io.write(data)
   
 if __name__ == '__main__':

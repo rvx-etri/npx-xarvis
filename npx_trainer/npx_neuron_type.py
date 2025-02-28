@@ -160,6 +160,12 @@ class NpxNeuronType():
   def clamp_mem_(self, x:Tensor, is_quantized:bool):
     if not self.is_signed_potential:
       x.clamp_(min=0)
+      
+  def quantize_beta(self, beta:float):
+    denominator = 256
+    beta_numerator = int(beta*denominator)
+    result = float(beta_numerator) / denominator
+    return result
 
   @staticmethod
   def dequantize_tensor(qx:QTensor):

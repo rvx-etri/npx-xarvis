@@ -266,6 +266,8 @@ class NpxCfgParser():
         del layer_info['threshold']
         del layer_info['learn_threshold']
         del layer_info['mapped_fvalue']
+        del layer_info['beta']
+        del layer_info['learn_beta']
 
       elif layer_info.name == 'Flatten':
         out_channels = 1
