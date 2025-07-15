@@ -89,7 +89,12 @@ check_python:
 	@${PYTHON3_CMD} --version
 
 install_pip:
-	@echo ${PYTHON3_CMD} -m ensurepip
+	@echo ${PYTHON3_CMD} -m ensurepip --upgrade
+	@echo PYTHON3_CMD=${PYTHON3_CMD}>${PYTHON_CONFIG_FILE}
+
+install_pip_old:
+	@wget https://bootstrap.pypa.io/get-pip.py
+	@echo ${PYTHON3_CMD} ./get-pip.py
 	@echo PYTHON3_CMD=${PYTHON3_CMD}>${PYTHON_CONFIG_FILE}
 
 check_pip:
@@ -98,7 +103,7 @@ check_pip:
 
 fix_pip: install_pip
 
-USER_PIP_LIST=distro numpy cryptography pyelftools configparser Pillow
+USER_PIP_LIST=setuptools distro cryptography pyelftools configparser Pillow
 
 pip_private:
 	-${PIP3_CMD} install --upgrade pip
@@ -122,11 +127,18 @@ pip_list:
 	@${PIP3_CMD} list -v
 
 rvx_init_git:
-	@if ! [ -d ./rvx_init ] ;	\
-	then \
-		git clone https://bitbucket.org/kyuseung_han/rvx_init.git ; \
-	fi
-	git submodule add -f https://bitbucket.org/kyuseung_han/rvx_init.git
+	-git submodule deinit -f rvx_init
+	-rm -rf .git/modules/rvx_init
+	-git rm -rf ./rvx_init
+	-rm -rf ./rvx_init
+	git clone https://github.com/rvx-etri/rvx_init.git
+
+rvx_init_subgit:
+	-git submodule deinit -f rvx_init
+	-rm -rf .git/modules/rvx_init
+	-git rm -rf ./rvx_init
+	-rm -rf ./rvx_init
+	git submodule add -f https://github.com/rvx-etri/rvx_init.git
 
 update_rvx_init:
 	@if [ -f ${RVX_INIT_HOME}/rvx_init.mh ] ;	\
@@ -137,6 +149,9 @@ update_rvx_init:
 submodule:
 	git submodule init
 	git submodule update --force
+
+submodule_lfs: submodule
+	git submodule foreach --recursive git lfs pull
 
 check_rvx_init:
 	@echo ${RVX_INIT_HOME}
