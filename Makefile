@@ -6,7 +6,18 @@ config:
 	@echo "export XARVIS_NPX_TRANIER_HOME=${CURDIR}/npx_trainer" >> ./rvx_setup.sh
 
 preinstall:
-	yum install sqlite-devel xz-devel # recompile python
+	@echo "Checking OS type..."
+	@os_id=$$(. /etc/os-release && echo $$ID); \
+	if [ "$$os_id" = "centos" ] || [ "$$os_id" = "rhel" ]; then \
+		echo "Detected $$os_id -> using yum"; \
+		sudo yum install -y sqlite-devel xz-devel; \
+	elif [ "$$os_id" = "ubuntu" ] || [ "$$os_id" = "debian" ]; then \
+		echo "Detected $$os_id -> using apt"; \
+		sudo apt update && sudo apt install -y libsqlite3-dev liblzma-dev; \
+	else \
+		echo "Unknown OS: $$os_id"; \
+		exit 1; \
+	fi
 
 install: install_verified
 
