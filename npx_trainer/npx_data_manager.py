@@ -42,7 +42,10 @@ class NpxDataManager():
     self.kfold = kfold
     self.fair_distribution = False
 
-    self.download_path.mkdir(parents=True, exist_ok=True)
+    datatset_list = ['mnist', 'kmnist', 'fmnist', 'cifar10', 'gtsrb', 'dvsgesture']
+    
+    if self.name in datatset_list:
+      self.download_path.mkdir(parents=True, exist_ok=True)
 
     if self.name=='mnist':
       self.raw_data_format = DataFormat.MATRIX3D
@@ -140,7 +143,21 @@ class NpxDataManager():
       self.dataset_test = tonic.DiskCachedDataset(test_set, cache_path=self.download_path/'cache/dvsgesture/test')
       self.dataset_test_raw = tonic.datasets.DVSGesture(save_to=self.download_path, train=False)
     else:
-      assert 0, dataset_name
+      print(f'Custum Dataset: {self.name}')
+      assert self.download_path.is_dir(), f"Dataset does not exist in the path: {self.download_path}"
+      self.raw_data_format = DataFormat.MATRIX3D
+      self.data_format = DataFormat.MATRIX3D
+      self.step_generation = npx_define.cfg_parser.preprocess_info.setdefault('step_generation','direct')
+      self.timesteps = npx_define.cfg_parser.preprocess_info.setdefault('timesteps',4)
+      #value = NpxCfgParser.find_option_value(npx_define.cfg_parser.preprocess_info, 'resize', '14,14')
+      #self.resize = intstr_to_tuple(value)
+      transform = transforms.Compose([
+        #transforms.Resize(self.resize),
+        transforms.Grayscale(),
+        transforms.ToTensor(),
+        transforms.Normalize((0,), (1,))])
+      dataset_train_and_val = datasets.MNIST(root=self.download_path, train=True, download=False, transform=transform)
+      self.dataset_test = datasets.MNIST(root=self.download_path, train=False, download=False, transform=transform)
     
     if self.fair_distribution:
       labeled_dataset_dict = {}

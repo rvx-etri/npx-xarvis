@@ -211,6 +211,13 @@ class NpxCfgParser():
     elif self.preprocess_info['input'] == 'dvsgesture_dataset':
       scale = 1
       datatype = DataType(SignedType.UNSIGNED, NumberType.DISCR, 0, scale)
+    elif self.preprocess_info['input'].endswith('_dataset'):
+      if self.preprocess_info['step_generation'] == 'direct':
+        scale = 1
+        datatype = DataType(SignedType.UNSIGNED,
+                  NumberType.DISCR, 0, scale)
+      else:
+        assert 0
     else:
       assert 0
     return LayerIoInfo(scale, datatype, self.train_info['input_channels'], self.train_info['input_size'])
