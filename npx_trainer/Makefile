@@ -1,8 +1,10 @@
-include ../rvx_python_config.mh
+ifdef XARVIS_HOME
+	include ${XARVIS_HOME}/rvx_config.mh
+endif
 
-RVX_UTIL_HOME=$(abspath ${CURDIR}/../rvx_util)
+include ${RVX_UTIL_HOME}/template_makefile.mh
+GIT_BASE = $(call absolute_path,${CURDIR}/..)
 
-GIT_BASE=$(abspath ${CURDIR}/..)
 DATASET_DIR=${GIT_BASE}/dataset
 VERIFY_DIR=${GIT_BASE}/verify
 RESULT_DIR=${CURDIR}/result
