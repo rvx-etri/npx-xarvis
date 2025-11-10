@@ -12,6 +12,7 @@ class DataFormat(Enum):
   MATRIX3D = 1 # c,h,w
   MATRIX4D = 2 # t,c,h,w
   DVS = 3
+  WAVEFORM = 4 # t (waveform)
   
 class NpxDefine:
   def __init__(self, app_cfg_path:Path, output_path:Path):
@@ -174,3 +175,4 @@ class NpxDefine:
     filename += f'_{i:03}'
     filename += '.bin'
     return self.riscv_tv_path / filename
+

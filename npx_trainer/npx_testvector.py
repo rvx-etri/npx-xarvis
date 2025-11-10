@@ -56,7 +56,7 @@ def list_to_string(lst):
     else:  # ������ ����
         return ' '.join(map(str, lst))
 
-def save_sample(npx_define:NpxDefine, data:torch.Tensor, target:torch.Tensor, i:int, data_format:DataFormat, data_type:torch.dtype):
+def save_sample(npx_define:NpxDefine, data:torch.Tensor, target:np.ndarray, i:int, data_format:DataFormat, data_type:torch.dtype):
     riscv_sample_bin_path = npx_define.get_riscv_sample_bin_path(i=i, data_format=data_format)
     with open(riscv_sample_bin_path, "wb") as data_file:
       write_data_aligned_by_4bytes(data_file, data, data_type)
@@ -113,11 +113,11 @@ def _generate_testvector_for_matrix3d_input(npx_module:NpxModule, npx_define:Npx
   spike_input = False
   for i, (data, target) in enumerate(sample_list):
     data = torch.unsqueeze(data, dim=0).to(device)
-    raw_data = (data*255).round()
     target = torch.Tensor([target]).to(torch.int32).numpy()
     #target = target.to(torch.int32).numpy()
 
     # save value(raw data) sample
+    raw_data = (data*255).round()
     save_sample(npx_define, raw_data, target, i, DataFormat.MATRIX3D, torch.uint8)
 
     num_steps = npx_define.timesteps
@@ -135,7 +135,7 @@ def _generate_testvector_for_matrix3d_input(npx_module:NpxModule, npx_define:Npx
         resized_data = nn.functional.interpolate(raw_data, size=npx_module.input_size)
       else:
         resized_data = raw_data
-      input_data = resized_data.repeat(tuple([num_steps] + torch.ones(len(raw_data.size()), dtype=int).tolist()))      
+      input_data = resized_data.repeat(tuple([num_steps] + torch.ones(len(resized_data.size()), dtype=int).tolist()))
 
     # save spike(rate coded data) sample and testvector
     if sample_only:
@@ -147,6 +147,51 @@ def _generate_testvector_for_matrix3d_input(npx_module:NpxModule, npx_define:Npx
       spk_rec = manual_forward_pass(npx_module, input_data, tv_bin_path=riscv_testvector_bin_path)
       print('output spikes: ', spk_rec.data)
       print('accumulated output spikes: ', spk_rec.sum(0).data)
+      inference_class_id = spk_rec.sum(0).argmax()
+      print('class id from inference: ', int(inference_class_id))
+      print('class id from dataset: ', int(target[0]))
+
+def _generate_testvector_for_waveform_input(npx_module:NpxModule, npx_define:NpxDefine, npx_data_manager:NpxDataManager, num_sample:int, sample_only:bool):
+  sample_list = get_sample(dataset=npx_data_manager.dataset_test_raw, num_sample=num_sample)
+
+  num_steps = npx_define.timesteps
+  for i, (waveform, target) in enumerate(sample_list):
+    target = torch.Tensor([target]).to(torch.int32).numpy()
+
+    # save waveform data sample
+    raw_waveform = (waveform * 32768).clamp(-32768, 32767)
+    save_sample(npx_define, raw_waveform, target, i, DataFormat.WAVEFORM, torch.int16)
+
+    if npx_data_manager.feature=='mel_spectrogram':
+      sample_rate = npx_define.cfg_parser.preprocess_info['mel_spectrogram.sample_rate']
+      n_fft = npx_define.cfg_parser.preprocess_info['mel_spectrogram.n_fft']
+      win_length = npx_define.cfg_parser.preprocess_info['mel_spectrogram.win_length']
+      hop_length = npx_define.cfg_parser.preprocess_info['mel_spectrogram.hop_length']
+      n_mels = npx_define.cfg_parser.preprocess_info['mel_spectrogram.n_mels']
+      mel_spectrogram = NpxMelSpectrogram(
+            sample_rate=sample_rate,
+            n_fft=n_fft,
+            win_length=win_length,
+            hop_length=hop_length,
+            n_mels=n_mels
+      )
+      preprocessed_data = mel_spectrogram(waveform.squeeze(0)).unsqueeze(0)
+    else:
+      preprocessed_data = waveform.unsqueeze(0)
+    print(preprocessed_data)
+    input_data = preprocessed_data.repeat(tuple([num_steps] + torch.ones(len(preprocessed_data.size()), dtype=int).tolist()))
+
+    # save testvector
+    if sample_only:
+      riscv_testvector_bin_path = None
+    else:
+      riscv_testvector_bin_path = npx_define.get_riscv_layeroutput_bin_path(i=i)
+    #if not riscv_testvector_bin_path.is_file():
+    if True:
+      assert(npx_define.timesteps == npx_data_manager.timesteps)
+      spk_rec = manual_forward_pass(npx_module, input_data, tv_bin_path=riscv_testvector_bin_path)
+      print('output spikes: ', spk_rec.data)
+      print('output spikes: ', spk_rec.sum(0).data)
       inference_class_id = spk_rec.sum(0).argmax()
       print('class id from inference: ', int(inference_class_id))
       print('class id from dataset: ', int(target[0]))
@@ -166,6 +211,8 @@ def generate_testvector(npx_define:NpxDefine, npx_data_manager:NpxDataManager, n
     _generate_testvector_for_matrix3d_input(npx_module, npx_define, npx_data_manager, num_sample, sample_only)
   elif npx_data_manager.raw_data_format == DataFormat.DVS:
     _generate_testvector_for_dvs_input(npx_module, npx_define, npx_data_manager, num_sample, sample_only)
+  elif npx_data_manager.raw_data_format == DataFormat.WAVEFORM:
+    _generate_testvector_for_waveform_input(npx_module, npx_define, npx_data_manager, num_sample, sample_only)
   else:
     assert 0, npx_data_manager.raw_data_format
 

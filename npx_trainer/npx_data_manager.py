@@ -13,6 +13,8 @@ from requests import get
 from npx_cfg_parser import *
 from npx_define import *
 
+from npx_speechcommands import *
+
 def download(url:str, root:Path,file_name = None):
   if not file_name:
     file_name = url.split('/')[-1]
@@ -90,7 +92,6 @@ class NpxDataManager():
         transforms.Grayscale(),
         transforms.ToTensor(),
         transforms.Normalize((0,), (1,))])
-
       download('https://github.com/zalandoresearch/fashion-mnist/raw/master/data/fashion/t10k-images-idx3-ubyte.gz', self.download_path / 'FashionMNIST/raw' )
       download('https://github.com/zalandoresearch/fashion-mnist/raw/master/data/fashion/t10k-labels-idx1-ubyte.gz', self.download_path / 'FashionMNIST/raw' )
       download('https://github.com/zalandoresearch/fashion-mnist/raw/master/data/fashion/train-images-idx3-ubyte.gz', self.download_path / 'FashionMNIST/raw' )
@@ -142,10 +143,42 @@ class NpxDataManager():
       dataset_train_and_val = tonic.DiskCachedDataset(train_set, cache_path=self.download_path/'cache/dvsgesture/train')
       self.dataset_test = tonic.DiskCachedDataset(test_set, cache_path=self.download_path/'cache/dvsgesture/test')
       self.dataset_test_raw = tonic.datasets.DVSGesture(save_to=self.download_path, train=False)
+    elif self.name=='speechcommands':
+      self.raw_data_format = DataFormat.WAVEFORM
+      self.data_format = DataFormat.MATRIX3D
+      self.timesteps = npx_define.cfg_parser.preprocess_info.setdefault('timesteps',4)
+      #self.input_type = npx_define.cfg_parser.preprocess_info.setdefault('input_type','waveform')
+      self.num_samples = npx_define.cfg_parser.preprocess_info.setdefault('num_samples',16000)
+      self.feature = npx_define.cfg_parser.preprocess_info.setdefault('feature', None)
+      self.transform = None
+      self.sample_rate = 16000
+      if self.feature=='mel_spectrogram':
+        self.sample_rate = npx_define.cfg_parser.preprocess_info.setdefault('mel_spectrogram.sample_rate',16000)
+        self.n_fft = npx_define.cfg_parser.preprocess_info.setdefault('mel_spectrogram.n_fft',512)
+        self.win_length = npx_define.cfg_parser.preprocess_info.setdefault('mel_spectrogram.win_length',400)
+        self.hop_length = npx_define.cfg_parser.preprocess_info.setdefault('mel_spectrogram.hop_length',160)
+        self.n_mels = npx_define.cfg_parser.preprocess_info.setdefault('mel_spectrogram.n_mels',40)
+        self.transform = NpxMelSpectrogram(
+              sample_rate=self.sample_rate,
+              n_fft=self.n_fft,
+              win_length=self.win_length,
+              hop_length=self.hop_length,
+              n_mels=self.n_mels
+        )
+      train_dataset = SpeechCommandsKWSMulti(root=self.download_path, subset='training', transform=self.transform, target_sr=self.sample_rate, num_samples=self.num_samples)
+      val_dataset   = SpeechCommandsKWSMulti(root=self.download_path, subset='validation', transform=self.transform, target_sr=self.sample_rate, num_samples=self.num_samples)
+      dataset_train_and_val = train_dataset + val_dataset
+      self.dataset_test = SpeechCommandsKWSMulti(root=self.download_path, subset='testing', transform=self.transform, target_sr=self.sample_rate, num_samples=self.num_samples)
+      self.dataset_test_raw = SpeechCommandsKWSMulti(root=self.download_path, subset='testing', transform=None, target_sr=self.sample_rate, num_samples=self.num_samples)
     else:
       print(f'Custum Dataset: {self.name}')
       assert self.download_path.is_dir(), f"Dataset does not exist in the path: {self.download_path}"
-      self.raw_data_format = DataFormat.MATRIX3D
+      self.input_type = npx_define.cfg_parser.preprocess_info.setdefault('input_type', 'image')
+      if self.input_type == 'waveform':
+        self.raw_data_format = DataFormat.WAVEFORM
+      else:
+        self.raw_data_format = DataFormat.MATRIX3D
+      # if self.input_type == 'waveform' ??? dododo
       self.data_format = DataFormat.MATRIX3D
       self.step_generation = npx_define.cfg_parser.preprocess_info.setdefault('step_generation','direct')
       self.timesteps = npx_define.cfg_parser.preprocess_info.setdefault('timesteps',4)
@@ -156,6 +189,8 @@ class NpxDataManager():
         transforms.Grayscale(),
         transforms.ToTensor(),
         transforms.Normalize((0,), (1,))])
+        #transforms.PILToTensor(),
+        #transforms.Lambda(lambda t: t.to(torch.float32))])
       dataset_train_and_val = datasets.MNIST(root=self.download_path, train=True, download=False, transform=transform)
       self.dataset_test = datasets.MNIST(root=self.download_path, train=False, download=False, transform=transform)
     
