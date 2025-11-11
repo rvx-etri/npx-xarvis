@@ -61,7 +61,7 @@ class SpeechCommandsKWSMulti(SPEECHCOMMANDS):
         cache_dir: Optional[str] = None,
         verbose: bool = True,
         unknown_per_target: float = 1.0,
-        silence_per_target: float = 0.5,
+        silence_per_target: float = 1.0,
         balance_mode: str = "downsample",
         seed: int = 1337,
     ):
