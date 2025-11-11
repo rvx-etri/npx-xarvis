@@ -434,14 +434,14 @@ class NpxMelSpectrogram(torch.nn.Module):
         return: (batch, num_frames, win_length)
         """
         batch_size, waveform_length = waveform.shape
-        #num_frames = int(math.ceil(float(abs(waveform_length - self.win_length)) / self.hop_length)) + 1
-        num_frames = int(math.ceil(float(abs(waveform_length - self.win_length)) / self.hop_length)) # no padding
-        pad_waveform_length = (num_frames - 1) * self.hop_length + self.win_length
-        pad_len = pad_waveform_length - waveform_length
-
-        if pad_len > 0:
-            pad = torch.zeros(batch_size, pad_len, dtype=waveform.dtype, device=waveform.device)
-            waveform = torch.cat((waveform, pad), dim=1)
+        assert waveform_length >= self.win_length, "must be waveform_length >= window length"
+        num_frames = int(math.floor(float(waveform_length - self.win_length) / self.hop_length)) + 1 # without pad
+        #num_frames = int(math.ceil(float(waveform_length - self.win_length) / self.hop_length)) + 1 # with pad
+        #pad_waveform_length = (num_frames - 1) * self.hop_length + self.win_length
+        #pad_len = pad_waveform_length - waveform_length
+        #if pad_len > 0:
+        #    pad = torch.zeros(batch_size, pad_len, dtype=waveform.dtype, device=waveform.device)
+        #    waveform = torch.cat((waveform, pad), dim=1)
 
         # frame indices
         indices0 = torch.arange(0, self.win_length, device=waveform.device).unsqueeze(0).repeat(num_frames, 1)
