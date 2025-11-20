@@ -70,7 +70,7 @@ class NpxModule(nn.Module):
   
   @property
   def input_size(self):
-    return self.cfg_parser.train_info['input_size']
+    return self.cfg_parser.global_info['input_size']
   
   @property
   def timesteps(self):

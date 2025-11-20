@@ -35,19 +35,26 @@ class NpxDataManager():
   def __init__(self, npx_define:NpxDefine, dataset_path:Path, kfold:int=None):
 
     self.name = npx_define.cfg_parser.preprocess_info['input']
-    assert self.name.endswith('_dataset'), self.name
-    self.name = self.name[:-len('_dataset')]
+    is_open_dataset = False
+    if self.name.endswith('_opendataset'):
+      self.name = self.name[:-len('_opendataset')]
+      opendatatset_list = ['mnist', 'kmnist', 'fmnist', 'cifar10', 'gtsrb', 'dvsgesture', 'speechcommands']
+      assert self.name in opendatatset_list, self.name
+      is_open_dataset = True
+    elif self.name.endswith('_dataset'):
+      self.name = self.name[:-len('_dataset')]
+    
     self.download_path = dataset_path / self.name
+    if is_open_dataset:
+      self.download_path.mkdir(parents=True, exist_ok=True)
+    else:
+      assert self.download_path.is_dir(), self.download_path
+    
     if kfold==None:
       kfold = 5
     assert kfold>=4, kfold
     self.kfold = kfold
     self.fair_distribution = False
-
-    datatset_list = ['mnist', 'kmnist', 'fmnist', 'cifar10', 'gtsrb', 'dvsgesture']
-    
-    if self.name in datatset_list:
-      self.download_path.mkdir(parents=True, exist_ok=True)
 
     if self.name=='mnist':
       self.raw_data_format = DataFormat.MATRIX3D
@@ -171,7 +178,7 @@ class NpxDataManager():
       self.dataset_test = SpeechCommandsKWSMulti(root=self.download_path, subset='testing', transform=self.transform, target_sr=self.sample_rate, num_samples=self.num_samples)
       self.dataset_test_raw = SpeechCommandsKWSMulti(root=self.download_path, subset='testing', transform=None, target_sr=self.sample_rate, num_samples=self.num_samples)
     else:
-      print(f'Custum Dataset: {self.name}')
+      print(f'Custom Dataset: {self.name}')
       assert self.download_path.is_dir(), f"Dataset does not exist in the path: {self.download_path}"
       self.input_type = npx_define.cfg_parser.preprocess_info.setdefault('input_type', 'image')
       if self.input_type == 'waveform':

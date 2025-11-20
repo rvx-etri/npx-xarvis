@@ -23,8 +23,8 @@ class NpxDefine:
     self.cfg_parser.parse_file(self.app_cfg_path)
     
     #self.__dict__.update(self.cfg_parser.preprocess_info)
-    assert(self.cfg_parser.preprocess_info['input'].endswith('_dataset'))
-    self.dataset_name = self.cfg_parser.preprocess_info['input'][:-len('_dataset')]
+    # assert(self.cfg_parser.preprocess_info['input'].endswith('_opendataset'))
+    self.dataset_name = self.cfg_parser.preprocess_info['input']
     self.timesteps = self.cfg_parser.preprocess_info['timesteps']
     
     self.__dict__.update(self.cfg_parser.train_info)

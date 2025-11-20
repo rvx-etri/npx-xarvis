@@ -136,5 +136,10 @@ if __name__ == '__main__':
     npx_define = NpxDefine(app_cfg_path=app_cfg_path, output_path=output_path)    
     best_result = analyze_best_result(npx_define)
     copy_best_parameter(npx_define,best_result)
+
+    print()
+    print(best_result)
+    print()
+
     generate_riscv_binary(npx_define)
     

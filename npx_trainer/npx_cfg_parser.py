@@ -201,17 +201,18 @@ class NpxCfgParser():
   def generate_preprocess_output_info(self):
     assert self.preprocess_info
     assert self.train_info
-    if self.preprocess_info['input']=='mnist_dataset' or self.preprocess_info['input']=='kmnist_dataset' or self.preprocess_info['input']=='fmnist_dataset' or self.preprocess_info['input']=='cifar10_dataset' or self.preprocess_info['input']=='gtsrb_dataset':
+    assert self.global_info
+    if self.preprocess_info['input']=='mnist_opendataset' or self.preprocess_info['input']=='kmnist_opendataset' or self.preprocess_info['input']=='fmnist_opendataset' or self.preprocess_info['input']=='cifar10_opendataset' or self.preprocess_info['input']=='gtsrb_opendataset':
       if self.preprocess_info['step_generation'] == 'direct':
         scale = 1
         datatype = DataType(SignedType.UNSIGNED,
                   NumberType.DISCR, 0, scale)
       else:
         assert 0
-    elif self.preprocess_info['input'] == 'dvsgesture_dataset':
+    elif self.preprocess_info['input'] == 'dvsgesture_opendataset':
       scale = 1
       datatype = DataType(SignedType.UNSIGNED, NumberType.DISCR, 0, scale)
-    elif self.preprocess_info['input'].endswith('_dataset'):
+    elif self.preprocess_info['input'].endswith('_opendataset'):
       if self.preprocess_info['step_generation'] == 'direct':
         scale = 1
         datatype = DataType(SignedType.UNSIGNED,
@@ -220,7 +221,7 @@ class NpxCfgParser():
         assert 0
     else:
       assert 0
-    return LayerIoInfo(scale, datatype, self.train_info['input_channels'], self.train_info['input_size'])
+    return LayerIoInfo(scale, datatype, self.global_info['input_channels'], self.global_info['input_size'])
 
   def elaborate_for_riscv(self):
     output_info = self.generate_preprocess_output_info()
@@ -307,4 +308,4 @@ class NpxCfgParser():
       del layer_info['neuron_type']
 
     self.preprocess_info = None
-    self.global_info = None
+    self.train_info = None
