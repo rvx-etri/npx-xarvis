@@ -154,29 +154,29 @@ class NpxDataManager():
       self.raw_data_format = DataFormat.WAVEFORM
       self.data_format = DataFormat.MATRIX3D
       self.timesteps = npx_define.cfg_parser.preprocess_info.setdefault('timesteps',4)
-      #self.input_type = npx_define.cfg_parser.preprocess_info.setdefault('input_type','waveform')
-      self.num_samples = npx_define.cfg_parser.preprocess_info.setdefault('num_samples',16000)
       self.feature = npx_define.cfg_parser.preprocess_info.setdefault('feature', None)
       self.transform = None
       self.sample_rate = 16000
       if self.feature=='mel_spectrogram':
+        self.num_samples = npx_define.cfg_parser.preprocess_info.setdefault('mel_spectrogram.num_samples',16000)
         self.sample_rate = npx_define.cfg_parser.preprocess_info.setdefault('mel_spectrogram.sample_rate',16000)
         self.n_fft = npx_define.cfg_parser.preprocess_info.setdefault('mel_spectrogram.n_fft',512)
         self.win_length = npx_define.cfg_parser.preprocess_info.setdefault('mel_spectrogram.win_length',400)
         self.hop_length = npx_define.cfg_parser.preprocess_info.setdefault('mel_spectrogram.hop_length',160)
         self.n_mels = npx_define.cfg_parser.preprocess_info.setdefault('mel_spectrogram.n_mels',40)
         self.transform = NpxMelSpectrogram(
+              num_samples=self.num_samples,
               sample_rate=self.sample_rate,
               n_fft=self.n_fft,
               win_length=self.win_length,
               hop_length=self.hop_length,
               n_mels=self.n_mels
         )
-      train_dataset = SpeechCommandsKWSMulti(root=self.download_path, subset='training', transform=self.transform, target_sr=self.sample_rate, num_samples=self.num_samples)
-      val_dataset   = SpeechCommandsKWSMulti(root=self.download_path, subset='validation', transform=self.transform, target_sr=self.sample_rate, num_samples=self.num_samples)
+      train_dataset = SpeechCommandsKWSMulti(root=self.download_path, subset='training', transform=self.transform, target_sr=self.sample_rate)
+      val_dataset   = SpeechCommandsKWSMulti(root=self.download_path, subset='validation', transform=self.transform, target_sr=self.sample_rate)
       dataset_train_and_val = train_dataset + val_dataset
-      self.dataset_test = SpeechCommandsKWSMulti(root=self.download_path, subset='testing', transform=self.transform, target_sr=self.sample_rate, num_samples=self.num_samples)
-      self.dataset_test_raw = SpeechCommandsKWSMulti(root=self.download_path, subset='testing', transform=None, target_sr=self.sample_rate, num_samples=self.num_samples)
+      self.dataset_test = SpeechCommandsKWSMulti(root=self.download_path, subset='testing', transform=self.transform, target_sr=self.sample_rate)
+      self.dataset_test_raw = SpeechCommandsKWSMulti(root=self.download_path, subset='testing', transform=None, target_sr=self.sample_rate)
     else:
       print(f'Custom Dataset: {self.name}')
       assert self.download_path.is_dir(), f"Dataset does not exist in the path: {self.download_path}"

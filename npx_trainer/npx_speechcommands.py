@@ -56,7 +56,8 @@ class SpeechCommandsKWSMulti(SPEECHCOMMANDS):
         target_words: List[str] = ['happy'],
         transform=None,
         target_sr: int = 16000,
-        num_samples: int = 16000,
+        #num_samples: int = 16000,
+        num_samples: int = 0,
         download: bool = True,
         cache_dir: Optional[str] = None,
         verbose: bool = True,
@@ -286,7 +287,8 @@ class SpeechCommandsKWSMulti(SPEECHCOMMANDS):
                 self._resampler = torchaudio.transforms.Resample(orig_freq=sr, new_freq=self.target_sr)
             waveform = self._resampler(waveform)
 
-        waveform = self._pad_or_trim(waveform, self.num_samples)
+        if self.num_samples > 0:
+          waveform = self._pad_or_trim(waveform, self.num_samples)
 
         if self.transform is not None:
             feat = self.transform(waveform.squeeze(0))
@@ -384,6 +386,9 @@ class SpeechCommandsKWSMulti(SPEECHCOMMANDS):
         Create a 'silence' segment by randomly cropping a background noise file.
         If none available, return zero-silence of length num_samples.
         """
+        if num_samples <= 0:
+          num_samples = 32000
+
         if bg_noises:
             wav = bg_noises[self.rng.randrange(len(bg_noises))]
             N = wav.size(1)
@@ -398,10 +403,11 @@ class SpeechCommandsKWSMulti(SPEECHCOMMANDS):
             return torch.zeros(1, num_samples)
 
 class NpxMelSpectrogram(torch.nn.Module):
-    __constants__ = ["sample_rate", "n_fft", "win_length", "hop_length", "n_mels"]
+    __constants__ = ["num_samples", "sample_rate", "n_fft", "win_length", "hop_length", "n_mels"]
 
     def __init__(
         self,
+        num_samples: int = 16000,
         sample_rate: int = 16000,
         n_fft: int = 400,
         win_length: Optional[int] = None,
@@ -412,6 +418,7 @@ class NpxMelSpectrogram(torch.nn.Module):
     ) -> None:
         super(NpxMelSpectrogram, self).__init__()
 
+        self.num_samples = num_samples
         self.sample_rate = sample_rate
         self.n_fft = n_fft
         self.win_length = win_length if win_length is not None else n_fft
@@ -420,6 +427,17 @@ class NpxMelSpectrogram(torch.nn.Module):
         self.pre_emp = pre_emp
         self.window = window
         self.fbank = self.get_filter_bank()
+
+    @staticmethod
+    def _pad_or_trim(waveform: torch.Tensor, num_samples: int) -> torch.Tensor:
+        """Pad with zeros or trim to a fixed number of samples."""
+        n = waveform.size(1)
+        if n < num_samples:
+            pad = num_samples - n
+            waveform = torch.nn.functional.pad(waveform, (0, pad))
+        else:
+            waveform = waveform[:, :num_samples]
+        return waveform
 
     def preemphasis(self, waveform: Tensor, pre_emphasis=0.97) -> Tensor:
         # pre-emphasis per sample in batch
@@ -503,6 +521,8 @@ class NpxMelSpectrogram(torch.nn.Module):
             pass
         elif waveform.dim() != 2:
             raise ValueError(f"Unsupported input shape: {waveform.shape}")
+
+        waveform = self._pad_or_trim(waveform, self.num_samples)
 
         if debug: print('waveform', waveform.shape, waveform)
         if self.pre_emp:
