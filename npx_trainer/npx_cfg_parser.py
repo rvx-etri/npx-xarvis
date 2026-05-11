@@ -225,6 +225,7 @@ class NpxCfgParser():
 
   def elaborate_for_riscv(self):
     output_info = self.generate_preprocess_output_info()
+    output_info_list = []
     for layer_info in self.layer_info_list:
       layer_info['input_info'] = output_info
       neuron_type = NpxNeuronType(layer_info['neuron_type'])
@@ -239,7 +240,7 @@ class NpxCfgParser():
                   * layer_info['kernel_size'])
         output_datatype *= weight_datatype
         output_size = []
-        for each_size in output_info.size:
+        for each_size in layer_info['input_info'].size:
           new_size = int((each_size + (2*layer_info['padding']) - (
             layer_info['kernel_size']-1)) / layer_info['stride'])
           output_size.append(new_size)
@@ -247,14 +248,40 @@ class NpxCfgParser():
 
         layer_info['weight_bitwidth'] = neuron_type.num_bits
 
+      elif layer_info.name == 'Shortcut':
+        layer_info['input_info'] = output_info_list[len(output_info_list) + layer_info['from']]
+
+        if layer_info['mode']=='projection':
+          in_channels = layer_info['in_channels']
+          assert layer_info['input_info'].dims == 2, layer_info['input_info'].size
+          assert layer_info['input_info'].channels == in_channels, in_channels
+          output_datatype *= (layer_info['kernel_size']
+                    * layer_info['kernel_size'])
+          output_datatype *= weight_datatype
+          output_size = []
+          for each_size in layer_info['input_info'].size:
+            new_size = int((each_size + (2*layer_info['padding']) - (
+              layer_info['kernel_size']-1)) / layer_info['stride'])
+            output_size.append(new_size)
+          out_channels = layer_info['out_channels']
+
+          layer_info['weight_bitwidth'] = neuron_type.num_bits
+
+        elif layer_info['mode']=='identity': 
+          output_scale = 1
+          output_datatype = layer_info['input_info'].datatype
+          out_channels = layer_info['input_info'].channels
+          output_size = layer_info['input_info'].size
+        else:
+          assert 0, layer_info['mode']
+
       elif layer_info.name == 'Linear':
         assert layer_info['input_info'].dims == 1, layer_info['input_info'].size
         assert layer_info['in_features'] == layer_info['input_info'].size[0]
         output_datatype *= layer_info['in_features']
         output_datatype *= weight_datatype
         out_channels = layer_info['input_info'].channels
-        output_size = (layer_info['out_features'], 1)
-
+        output_size = (layer_info['out_features'], 1) 
         layer_info['weight_bitwidth'] = neuron_type.num_bits
 
       elif layer_info.name == 'AvgPool2d' or layer_info.name == 'MaxPool2d':
@@ -288,6 +315,7 @@ class NpxCfgParser():
       output_info = LayerIoInfo(
         output_scale, output_datatype, out_channels, tuple(output_size))
       layer_info['output_info'] = output_info
+      output_info_list.append(output_info)
 
     for layer_info in self.layer_info_list:
       for io_tpye in ('in', 'out'):

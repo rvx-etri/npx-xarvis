@@ -95,13 +95,22 @@ class NpxModule(nn.Module):
 
   def forward(self, x:Tensor):
     last_tensor = x
+    last_tensor_list = []
     for i, layer in enumerate(self.layer_sequence):
       if (type(layer)==nn.Linear) or (type(layer)==nn.Conv2d):
         last_tensor = self.forward_layer(i, layer, last_tensor)
+      elif isinstance(layer, Shortcut):
+        skip_tensor = last_tensor_list[(i) + layer.skip_from]
+        if layer.mode == "projection":
+          skip_tensor = self.forward_layer(i, layer, skip_tensor)
+        else: # ??
+          skip_tensor = layer(skip_tensor)
+        last_tensor = last_tensor + skip_tensor
       elif type(layer)==snntorch.Leaky:
         last_tensor = self.forward_neuron(i, layer, last_tensor)
       else:
         last_tensor = layer(last_tensor)
+      last_tensor_list.append(last_tensor)
 
     return last_tensor
 
@@ -132,6 +141,9 @@ class NpxModule(nn.Module):
     for layer in self.layer_sequence:
       if (type(layer)==nn.Linear) or (type(layer)==nn.Conv2d):
         print(layer.weight)
+      elif isinstance(layer, Shortcut):
+        if layer.mode == "projection":
+          print(layer.weight)
       elif type(layer)==snntorch.Leaky:
         print(layer.threshold)
 
@@ -142,6 +154,10 @@ class NpxModule(nn.Module):
       if (type(layer)==nn.Linear) or (type(layer)==nn.Conv2d):
         qtensor = layer.neuron_type.quantize_tensor(layer.weight.data, bounded=True)
         layer.weight.data = qtensor.tensor.float()
+      elif isinstance(layer, Shortcut):
+        if layer.mode == "projection":
+          qtensor = layer.neuron_type.quantize_tensor(layer.weight.data, bounded=True)
+          layer.weight.data = qtensor.tensor.float()
       elif type(layer)==snntorch.Leaky:
         qtensor = layer.neuron_type.quantize_tensor(layer.threshold, bounded=False)
         layer.threshold = type(layer.threshold)(qtensor.tensor.float())
@@ -152,6 +168,9 @@ class NpxModule(nn.Module):
     for layer in self.layer_sequence:
       if (type(layer)==nn.Linear) or (type(layer)==nn.Conv2d):
         line_list.append(str(layer.weight.tolist()))
+      elif isinstance(layer, Shortcut):
+        if layer.mode == "projection":
+          line_list.append(str(layer.weight.tolist()))
       elif type(layer)==snntorch.Leaky:
         line_list.append(str(layer.threshold.tolist()))
         line_list.append(str(layer.beta.tolist()))
@@ -195,9 +214,24 @@ class NpxModule(nn.Module):
         kernel_size = layer_option.setdefault('kernel_size', 3)
         stride = layer_option.setdefault('stride', 1)
         padding = layer_option.setdefault('padding', 0)
+        groups = layer_option.setdefault('groups', 1)
+        #print(in_channels, out_channels, kernel_size, stride, padding, groups)
+
+        layer = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, bias=False, groups=groups)
+        not_assigned_layer_list.append((layer, layer_option))
+
+      elif layer_option.name == 'Shortcut':
+        # synapse option
+        skip_from = layer_option.setdefault('from', 1)
+        mode = layer_option.setdefault('mode', 'projection')
+        in_channels = layer_option.setdefault('in_channels', 1)
+        out_channels = layer_option.setdefault('out_channels', 1)
+        kernel_size = layer_option.setdefault('kernel_size', 1)
+        stride = layer_option.setdefault('stride', 1)
+        padding = layer_option.setdefault('padding', 0)
         # print(in_channels, out_channels, kernel_size, stride, padding)
 
-        layer = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, bias=False)
+        layer = Shortcut(in_channels, out_channels, kernel_size, stride, padding, bias=False, skip_from=skip_from, mode=mode)
         not_assigned_layer_list.append((layer, layer_option))
 
       elif layer_option.name == 'MaxPool2d':
@@ -273,3 +307,22 @@ class NpxModule(nn.Module):
     neuron.neuron_type = neuron_type
     
     return neuron
+
+class Shortcut(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, bias, skip_from, mode="projection"):
+        super().__init__()
+
+        self.skip_from = skip_from
+        self.mode = mode
+
+        if self.mode == "projection":
+            self.op = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, bias=bias)
+            self.weight = self.op.weight
+        elif self.mode == "identity":
+            self.op = nn.Identity()
+            self.weight = None
+        else:
+            raise ValueError(f"Unknown mode: {self.mode}")
+
+    def forward(self, x):
+        return self.op(x)
