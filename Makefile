@@ -41,7 +41,14 @@ install_original:
 	${PYTHON3_CMD} -m pip install torch==1.12.1+cpu torchvision==0.13.1+cpu torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cpu
 	${PYTHON3_CMD} -m pip install snntorch
 
-install_verified:
+install_verified: install_verified_202607
+
+install_verified_202607:
+	${PYTHON3_CMD} -m pip install tqdm==4.68.3 tonic==1.6.0
+	${PYTHON3_CMD} -m pip install torch==2.8.0+cpu torchvision==0.23.0+cpu torchaudio==2.8.0 --extra-index-url https://download.pytorch.org/whl/cpu
+	${PYTHON3_CMD} -m pip install snntorch==1.0.0
+
+install_verified_202510:
 	${PYTHON3_CMD} -m pip install tqdm==4.67.1 tonic==1.6.0
 	${PYTHON3_CMD} -m pip install torch==2.4.1+cpu torchvision==0.19.1+cpu torchaudio==2.4.1 --extra-index-url https://download.pytorch.org/whl/cpu
 	${PYTHON3_CMD} -m pip install snntorch==0.9.1
