@@ -80,11 +80,14 @@ def write_parameter_to_binaryfile(npx_module:NpxModule, bin_path:Path):
           write_data_aligned_by_4bytes(bin_file, weights, torch.int32)
         else:
           assert 0, neuron_type.num_bits
-      elif type(layer)==snntorch.Leaky:
+      elif npx_module.is_neuron(layer):
         threshold = layer.threshold
         write_data_aligned_by_4bytes(bin_file, threshold, torch.int32)
         beta = layer.beta
         write_data_aligned_by_4bytes(bin_file, beta, torch.float32)
+        # 2nd-order models ([Synaptic]/[Alpha]) additionally export `alpha`.
+        if hasattr(layer, 'alpha'):
+          write_data_aligned_by_4bytes(bin_file, layer.alpha, torch.float32)
 
 def write_data_aligned_by_4bytes(file_io, data:torch.Tensor, data_type:torch.dtype):
   if data_type==torch.float32:

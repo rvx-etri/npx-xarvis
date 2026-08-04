@@ -221,7 +221,7 @@ debug_print_layer_outout = False
 
 def scale_threshold_for_first_leaky_layer(npx_module:NpxModule, scale:float=1.0):
   for i, layer in enumerate(npx_module.layer_sequence):
-    if type(layer)==snntorch.Leaky:
+    if npx_module.is_neuron(layer):
       with torch.no_grad():
         layer.threshold *= scale
       break

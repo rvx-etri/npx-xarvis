@@ -38,7 +38,20 @@ class PotentialResult():
   def __repr__(self):
     assert self.neuron_type
     return str((self.pacc,self.nacc,math.ceil(self.max/self.neuron_type.qscale)))
-  
+
+NEURON_REGISTRY = {
+  'leaky': snntorch.Leaky,
+  'synaptic': snntorch.Synaptic,
+  'alpha': snntorch.Alpha,
+}
+NEURON_STATE_NAMES = {
+  'leaky': ('mem',),
+  'synaptic': ('syn', 'mem'),
+  'alpha': ('syn_exc', 'syn_inh', 'mem'),
+}
+NEURON_SECTION_NAMES = ('Leaky', 'Synaptic', 'Alpha')
+NEURON_CLASSES = tuple(NEURON_REGISTRY.values())
+
 class NpxModule(nn.Module):
   def __init__(self, app_cfg_path:Path, neuron_type_class=NpxNeuronType):
     super().__init__()
@@ -76,6 +89,10 @@ class NpxModule(nn.Module):
   def timesteps(self):
     return self.cfg_parser.preprocess_info['timesteps']
 
+  @classmethod
+  def is_neuron(cls, layer):
+    return isinstance(layer, NEURON_CLASSES)
+
   def backup_epoch_cfg(self, cfg_path:Path, overwrite:bool=False):
     assert overwrite or (not cfg_path.is_file()), cfg_path
     app_cfg_generator = npx_app_cfg_generator.NpxAppCfgGenerator()
@@ -106,7 +123,7 @@ class NpxModule(nn.Module):
         else: # ??
           skip_tensor = layer(skip_tensor)
         last_tensor = last_tensor + skip_tensor
-      elif type(layer)==snntorch.Leaky:
+      elif self.is_neuron(layer):
         last_tensor = self.forward_neuron(i, layer, last_tensor)
       else:
         last_tensor = layer(last_tensor)
@@ -144,7 +161,7 @@ class NpxModule(nn.Module):
       elif isinstance(layer, Shortcut):
         if layer.mode == "projection":
           print(layer.weight)
-      elif type(layer)==snntorch.Leaky:
+      elif self.is_neuron(layer):
         print(layer.threshold)
 
   def quantize_network(self):
@@ -158,7 +175,7 @@ class NpxModule(nn.Module):
         if layer.mode == "projection":
           qtensor = layer.neuron_type.quantize_tensor(layer.weight.data, bounded=True)
           layer.weight.data = qtensor.tensor.float()
-      elif type(layer)==snntorch.Leaky:
+      elif self.is_neuron(layer):
         qtensor = layer.neuron_type.quantize_tensor(layer.threshold, bounded=False)
         layer.threshold = type(layer.threshold)(qtensor.tensor.float())
 
@@ -171,7 +188,7 @@ class NpxModule(nn.Module):
       elif isinstance(layer, Shortcut):
         if layer.mode == "projection":
           line_list.append(str(layer.weight.tolist()))
-      elif type(layer)==snntorch.Leaky:
+      elif self.is_neuron(layer):
         line_list.append(str(layer.threshold.tolist()))
         line_list.append(str(layer.beta.tolist()))
     path.write_text('\n'.join(line_list))
@@ -254,7 +271,7 @@ class NpxModule(nn.Module):
         layer = nn.Flatten()
         not_assigned_layer_list.append((layer, layer_option))
 
-      elif layer_option.name == 'Leaky':
+      elif layer_option.name in NEURON_SECTION_NAMES:
         #layer = self.make_neuron(layer_option, neuron_output)
         layer = self.make_neuron(layer_option, False)
         assert layer.neuron_type

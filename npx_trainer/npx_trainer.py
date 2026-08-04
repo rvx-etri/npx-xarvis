@@ -2,6 +2,7 @@ import os
 import argparse
 import time
 import shutil
+import copy
 from pathlib import *
 from tqdm.auto import tqdm
 from collections import namedtuple
@@ -32,6 +33,8 @@ class NpxTrainer():
     self.loss_function = SF.mse_count_loss(correct_rate=0.8, incorrect_rate=0.2)
     self.log_interval = 100
     self.module_class = module_class
+    self.scheduler = None
+    self.grad_clip = 0.0
   
   @staticmethod
   def save_checkpoint(npx_module, optimizer, path:Path):
@@ -53,10 +56,44 @@ class NpxTrainer():
     npx_define.parameter_dir_path.mkdir(parents=True, exist_ok=True)
     npx_module = self.module_class(app_cfg_path=npx_define.app_cfg_path).to(self.device)
     #npx_module.apply(init_weights)
-    if npx_data_manager.name=='dvsgesture':
-      self.optimizer = torch.optim.Adam(npx_module.parameters(), lr=0.002, betas=(0.9, 0.999))
+    # Optional optimizer / schedule controls, read from the cfg's [train]
+    # section (NpxDefine.__init__ copies those keys onto itself). Every one of
+    # them defaults to the previous behaviour, so cfgs that do not set them are
+    # trained exactly as before.
+    # Any option left unset falls through to the torch.optim.Adam default.
+    # `betas` accepts either `betas=0.9,0.999` or `betas=(0.9, 0.999)` -- the cfg
+    # parser runs ast.literal_eval on the value, so both yield a 2-tuple.
+    optimizer_kwargs = {}
+    lr = getattr(npx_define, 'lr', None)
+    if lr is not None:
+      optimizer_kwargs['lr'] = float(lr)
+    betas = getattr(npx_define, 'betas', None)
+    if betas is not None:
+      assert isinstance(betas, (tuple, list)) and len(betas)==2, \
+        f'[train] betas must be two values, e.g. "betas=0.9,0.999" (got {betas!r})'
+      optimizer_kwargs['betas'] = tuple(float(b) for b in betas)
+    weight_decay = getattr(npx_define, 'weight_decay', None)
+    if weight_decay is not None:
+      optimizer_kwargs['weight_decay'] = float(weight_decay)
+    self.optimizer = torch.optim.Adam(npx_module.parameters(), **optimizer_kwargs)
+
+    schedule = str(getattr(npx_define, 'lr_schedule', 'none')).lower()
+    if schedule=='none':
+      self.scheduler = None
+    elif schedule=='cosine':
+      self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        self.optimizer, T_max=num_epochs, eta_min=float(getattr(npx_define, 'lr_min', 0.0)))
+    elif schedule=='step':
+      self.scheduler = torch.optim.lr_scheduler.StepLR(
+        self.optimizer, step_size=int(getattr(npx_define, 'lr_step', 10)),
+        gamma=float(getattr(npx_define, 'lr_gamma', 0.1)))
     else:
-      self.optimizer = torch.optim.Adam(npx_module.parameters())    
+      assert 0, schedule
+
+    # Gradient-norm clipping. A dead SNN has exactly zero weight gradient, so a
+    # loss spike that silences the network is unrecoverable; clipping keeps a
+    # single bad batch from pushing it there.
+    self.grad_clip = float(getattr(npx_define, 'grad_clip', 0.0))
 
     previous_epoch_index = -1
     previous_history_file = None
@@ -71,13 +108,63 @@ class NpxTrainer():
       self.load_checkpoint(npx_module,self.optimizer,previous_history_file)
       #npx_module.load_state_dict(torch.load(previous_history_file))
       print(f'Start from \"{previous_history_file.name}\"')
+      # The scheduler is not checkpointed; fast-forward it so a resumed run
+      # continues on the same LR curve.
+      if self.scheduler:
+        for _ in range(start_epoch_index):
+          self.scheduler.step()
+
+    # A silent SNN has exactly zero weight gradient, so the silent state is
+    # absorbing. Starting straight into augmented data can drive the network
+    # there before it has found any class signal, so augmentation can be delayed
+    # by `augmentation_start_epoch` epochs. Default 0 = augment from the start.
+    aug_start = int(getattr(npx_define, 'augmentation_start_epoch', 0))
+
+    # Collapse guard. A silent SNN has exactly zero weight gradient, so once a
+    # loss spike drives the network into the silent state it can never recover
+    # on its own -- the run is dead for every remaining epoch. When enabled,
+    # detect the collapse, roll back to the best checkpoint so far and halve the
+    # learning rate, which is what makes the spike survivable.
+    collapse_guard = str(getattr(npx_define, 'collapse_guard', False)) not in ('False', 'false', '0', 'None')
+    best_acc = 0.0
+    best_state = None
 
     for epoch_index in range(start_epoch_index, num_epochs):
+      npx_data_manager.set_augmentation(epoch_index >= aug_start)
       npx_module.backup_cfg(npx_define, epoch_index)
+      if self.scheduler:
+        print(f'Epoch {epoch_index} lr={self.optimizer.param_groups[0]["lr"]:.6g}'
+              f' aug={epoch_index >= aug_start}')
       self.train_once(npx_module=npx_module, npx_data_manager=npx_data_manager, epoch_index=epoch_index)
+      if self.scheduler:
+        self.scheduler.step()
+      result = self.test_once(npx_module, npx_data_manager.test_loader, npx_data_manager.data_format)
+
+      if collapse_guard:
+        # Keyed on VALIDATION, never on test, so nothing from the test set can
+        # influence training. Detects the collapse just as well: it is a fall to
+        # near-chance, not a subtle regression.
+        val_result = self.test_once(npx_module, npx_data_manager.val_loader, npx_data_manager.data_format)
+        accuracy = val_result.acc / val_result.total
+        if best_state is not None and accuracy < (0.5 * best_acc):
+          new_lr = self.optimizer.param_groups[0]['lr'] * 0.5
+          print(f'[collapse guard] epoch {epoch_index} val {accuracy:.4f} < half of best '
+                f'{best_acc:.4f}; rolling back and setting lr={new_lr:.6g}')
+          npx_module.load_state_dict(best_state['npx_module'])
+          self.optimizer.load_state_dict(best_state['optimizer'])
+          for group in self.optimizer.param_groups:
+            group['lr'] = new_lr
+          if self.scheduler:
+            # keep the schedule going from the reduced level
+            self.scheduler.base_lrs = [lr * 0.5 for lr in self.scheduler.base_lrs]
+          result = self.test_once(npx_module, npx_data_manager.test_loader, npx_data_manager.data_format)
+        elif accuracy > best_acc:
+          best_acc = accuracy
+          best_state = copy.deepcopy({'npx_module': npx_module.state_dict(),
+                                      'optimizer': self.optimizer.state_dict()})
+
       self.save_checkpoint(npx_module, self.optimizer, npx_define.get_parameter_path(repeat_index,epoch_index, False))
       #torch.save(npx_module.state_dict(), npx_define.get_parameter_path(repeat_index,epoch_index, False))
-      result = self.test_once(npx_module, npx_data_manager.test_loader, npx_data_manager.data_format)
       NpxDefine.print_test_result(result)
 
   def train_once(self, npx_module:NpxModule, npx_data_manager:NpxDataManager, epoch_index:int):
@@ -99,6 +186,8 @@ class NpxTrainer():
       self.optimizer.zero_grad()
       loss_val.backward()
       #loss_val.backward(retain_graph=True)
+      if getattr(self, 'grad_clip', 0.0) > 0:
+        torch.nn.utils.clip_grad_norm_(npx_module.parameters(), self.grad_clip)
       self.optimizer.step()
 
       if (batch_idx % self.log_interval) == 0:

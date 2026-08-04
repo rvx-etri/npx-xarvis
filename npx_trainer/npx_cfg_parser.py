@@ -204,17 +204,17 @@ class NpxCfgParser():
     assert self.global_info
     if self.preprocess_info['input']=='mnist_opendataset' or self.preprocess_info['input']=='kmnist_opendataset' or self.preprocess_info['input']=='fmnist_opendataset' or self.preprocess_info['input']=='cifar10_opendataset' or self.preprocess_info['input']=='gtsrb_opendataset':
       if self.preprocess_info['step_generation'] == 'direct':
-        scale = 1
+        scale = 65535
         datatype = DataType(SignedType.UNSIGNED,
                   NumberType.DISCR, 0, scale)
       else:
         assert 0
     elif self.preprocess_info['input'] == 'dvsgesture_opendataset':
-      scale = 1
+      scale = 65535
       datatype = DataType(SignedType.UNSIGNED, NumberType.DISCR, 0, scale)
     elif self.preprocess_info['input'].endswith('dataset'):
       if self.preprocess_info['step_generation'] == 'direct':
-        scale = 1
+        scale = 65535
         datatype = DataType(SignedType.UNSIGNED,
                   NumberType.DISCR, 0, scale)
       else:
@@ -291,7 +291,7 @@ class NpxCfgParser():
         for each_size in layer_info['input_info'].size:
           new_size = int(each_size/layer_info['stride'])
           output_size.append(new_size)
-      elif layer_info.name == 'Leaky':
+      elif layer_info.name in ('Leaky', 'Synaptic', 'Alpha'):
         output_scale = 1
         output_datatype = DataType(
           SignedType.UNSIGNED, NumberType.DISCR, 1, 1)
@@ -303,6 +303,10 @@ class NpxCfgParser():
         del layer_info['mapped_fvalue']
         del layer_info['beta']
         del layer_info['learn_beta']
+        # 2nd-order neuron models ([Synaptic]/[Alpha]) carry extra keys.
+        for extra_key in ('alpha', 'learn_alpha', 'neuron_model'):
+          if extra_key in layer_info:
+            del layer_info[extra_key]
 
       elif layer_info.name == 'Flatten':
         out_channels = 1
