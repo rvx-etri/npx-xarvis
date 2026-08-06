@@ -347,15 +347,21 @@ class NpxDataManager():
                     hop_length=self.hop_length,
                     n_mels=self.n_mels
                 )
+            self.output_classes = int( npx_define.cfg_parser.global_info.get("output_classes", 3))
+
             train_dataset = NpxSpeechCommandsPreprocess(
-                root=self.download_path, subset='training', transform=self.transform, target_sr=self.sample_rate)
+                root=self.download_path, subset='training', output_classes=self.output_classes,
+                transform=self.transform, target_sr=self.sample_rate)
             val_dataset = NpxSpeechCommandsPreprocess(
-                root=self.download_path, subset='validation', transform=self.transform, target_sr=self.sample_rate)
+                root=self.download_path, subset='validation', output_classes=self.output_classes,
+                transform=self.transform, target_sr=self.sample_rate)
             dataset_train_and_val = train_dataset + val_dataset
             self.dataset_test = NpxSpeechCommandsPreprocess(
-                root=self.download_path, subset='testing', transform=self.transform, target_sr=self.sample_rate)
+                root=self.download_path, subset='testing', output_classes=self.output_classes,
+                transform=self.transform, target_sr=self.sample_rate)
             self.dataset_test_raw = NpxSpeechCommandsPreprocess(
-                root=self.download_path, subset='testing', transform=None, target_sr=self.sample_rate)
+                root=self.download_path, subset='testing', output_classes=self.output_classes,
+                transform=None, target_sr=self.sample_rate)
         else:
             print(f'Custom Dataset: {self.name}')
             if not self.split_method:

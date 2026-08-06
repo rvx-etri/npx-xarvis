@@ -11,14 +11,59 @@ from torch.utils.data import Dataset
 from torch import Tensor
 from torchaudio.datasets import SPEECHCOMMANDS
 
+TASK_3_KEYWORDS = [
+    "happy",
+]
+
+TASK_6_KEYWORDS = [
+    "yes",
+    "down",
+    "left",
+    "right",
+    "off",
+    "stop",
+]
+
+TASK_12_KEYWORDS = [
+    "yes",
+    "no",
+    "up",
+    "down",
+    "left",
+    "right",
+    "on",
+    "off",
+    "stop",
+    "go",
+]
+
+GSC_35_WORDS = [
+    "backward", "bed", "bird", "cat", "dog", "down", "eight",
+    "five", "follow", "forward", "four", "go", "happy", "house",
+    "learn", "left", "marvin", "nine", "no", "off", "on", "one",
+    "right", "seven", "sheila", "six", "stop", "three", "tree",
+    "two", "up", "visual", "wow", "yes", "zero",
+]
+
+# output_classes: (target keywords, include unknown, include silence)
+CLASS_CONFIGS = {
+    3: (TASK_3_KEYWORDS, True, True),
+    6: (TASK_6_KEYWORDS, False, False),
+    12: (TASK_12_KEYWORDS, True, True),
+    35: (GSC_35_WORDS, False, False),
+}
+
+SUPPORTED_OUTPUT_CLASSES = tuple(CLASS_CONFIGS.keys())
+
 class NpxSpeechCommandsPreprocess(SPEECHCOMMANDS):
     """
     Multi-class Keyword Spotting dataset on Google Speech Commands.
 
     Classes:
       - one class per target word (in target_words, order preserved)
-      - plus 'unknown'
-      - plus 'silence'
+      - optional 'unknown' and 'silence' classes
+      - 3/12 classes include unknown and silence
+      - 6/35 classes consist only of target keywords
 
     Example (target_words=["happy","yes","no"]):
       CLASS_MAP = {"happy":0, "yes":1, "no":2, "unknown":3, "silence":4}
@@ -36,14 +81,14 @@ class NpxSpeechCommandsPreprocess(SPEECHCOMMANDS):
     Parameters:
       root: dataset root
       subset: "training" | "validation" | "testing"
-      target_words: list of target words to detect as separate classes
+      output_classes: one of 3, 6, 12, 35; selects a predefined class configuration
       transform: callable (waveform -> feature). Accepts (n,) or (1,n). Must return (T,M) or (1,T,M).
       target_sr: target sample rate (Hz)
       download: download dataset if missing
       cache_dir: directory path to cache preprocessed tensors (optional)
       verbose: print progress info
-      unknown_per_target: desired #unknown per 1 target sample (downsample mode)
-      silence_per_target: desired #silence per 1 target sample
+      unknown_per_target: unknown count relative to the average size of one target class
+      silence_per_target: silence count relative to the average size of one target class
       balance_mode: "downsample" | "weights"
       seed: RNG seed for reproducibility
     """
@@ -52,7 +97,7 @@ class NpxSpeechCommandsPreprocess(SPEECHCOMMANDS):
         self,
         root: str,
         subset: str,
-        target_words: List[str] = ['happy'],
+        output_classes: int = 3,
         transform=None,
         target_sr: int = 16000,
         download: bool = True,
@@ -63,16 +108,25 @@ class NpxSpeechCommandsPreprocess(SPEECHCOMMANDS):
         balance_mode: str = "downsample",
         seed: int = 1337,
     ):
-        super().__init__(root, download=download, subset=subset)
-        assert len(target_words) > 0, "target_words must be a non-empty list."
+        assert output_classes in CLASS_CONFIGS, (
+            f"Unsupported output_classes={output_classes}. "
+            f"Expected one of {SUPPORTED_OUTPUT_CLASSES}."
+        )
         assert balance_mode in ("downsample", "weights")
+
+        target_words, include_unknown, include_silence = CLASS_CONFIGS[output_classes]
+
+        super().__init__(root, download=download, subset=subset)
 
         # Basic config
         self.transform = transform
         self.target_sr = target_sr
         self.cache_dir = cache_dir
         self.verbose = verbose
+        self.output_classes = output_classes
         self.target_words = [w.lower() for w in target_words]
+        self.include_unknown = include_unknown
+        self.include_silence = include_silence
         self.unknown_per_target = unknown_per_target
         self.silence_per_target = silence_per_target
         self.balance_mode = balance_mode
@@ -99,10 +153,16 @@ class NpxSpeechCommandsPreprocess(SPEECHCOMMANDS):
             print(f"[WARN] target words not found in dataset: {missing}")
 
         # --- Step 2: Build CLASS_MAP dynamically ---
-        # One class per target word, then 'unknown', then 'silence'
         self.CLASS_MAP: Dict[str, int] = {w: i for i, w in enumerate(self.target_words)}
-        self.CLASS_MAP["unknown"] = len(self.target_words)
-        self.CLASS_MAP["silence"] = len(self.target_words) + 1
+        if self.include_unknown:
+            self.CLASS_MAP["unknown"] = len(self.CLASS_MAP)
+        if self.include_silence:
+            self.CLASS_MAP["silence"] = len(self.CLASS_MAP)
+
+        assert len(self.CLASS_MAP) == self.output_classes, (
+            f"Class configuration mismatch: requested={self.output_classes}, "
+            f"built={len(self.CLASS_MAP)}, labels={list(self.CLASS_MAP)}"
+        )
 
         # --- Step 3: Partition indices into targets (per word) and unknown labels ---
         target_indices_by_word: Dict[str, List[int]] = {w: [] for w in self.target_words}
@@ -111,7 +171,7 @@ class NpxSpeechCommandsPreprocess(SPEECHCOMMANDS):
             lcl = lbl.lower()
             if lcl in self.target_words:
                 target_indices_by_word[lcl].extend(indices)
-            elif "_background_" not in lcl:
+            elif self.include_unknown and "_background_" not in lcl:
                 unknown_label_list.append(lbl)
 
         # Gather all targets together for counting
@@ -126,14 +186,35 @@ class NpxSpeechCommandsPreprocess(SPEECHCOMMANDS):
         unknown_pool_by_label = {lbl: label_to_indices[lbl][:] for lbl in unknown_label_list}
 
         # --- Step 4: Decide desired counts for unknown and silence ---
+        # Use the average number of samples in one target keyword class.
+        # Therefore, a ratio of 1.0 makes unknown/silence approximately the
+        # same size as one average target class, regardless of whether the
+        # configuration contains 1 target keyword (3 classes) or 10 (12 classes).
         n_target = len(target_all_indices)
-        if self.balance_mode == "downsample":
-            n_unknown_desired = int(round(self.unknown_per_target * n_target))
-            n_silence_desired = int(round(self.silence_per_target * n_target))
+        num_target_classes = len(self.target_words)
+        assert num_target_classes > 0, "At least one target word is required."
+
+        samples_per_target_class = n_target / num_target_classes
+
+        if self.include_unknown:
+            if self.balance_mode == "downsample":
+                n_unknown_desired = int(round(
+                    self.unknown_per_target * samples_per_target_class
+                ))
+            else:
+                # Keep all unknown samples in weights mode.
+                n_unknown_desired = sum(
+                    len(indices) for indices in unknown_pool_by_label.values()
+                )
         else:
-            # keep all unknown in weights mode
-            n_unknown_desired = sum(len(v) for v in unknown_pool_by_label.values())
-            n_silence_desired = int(round(self.silence_per_target * n_target))
+            n_unknown_desired = 0
+
+        if self.include_silence:
+            n_silence_desired = int(round(
+                self.silence_per_target * samples_per_target_class
+            ))
+        else:
+            n_silence_desired = 0
 
         # --- Step 5: Stratified sampling for diverse unknowns ---
         unknown_indices = self._sample_unknown_diverse(
@@ -198,10 +279,15 @@ class NpxSpeechCommandsPreprocess(SPEECHCOMMANDS):
                 if lcl in self.target_words:
                     # Each target word has its own class index
                     label = self.CLASS_MAP[lcl]
-                else:
+                elif self.include_unknown:
                     label = self.CLASS_MAP["unknown"]
+                else:
+                    raise RuntimeError(
+                        f"Non-target label '{label}' appeared without an unknown class."
+                    )
             elif typ == "silence":
-                num_samples=32000
+                assert self.include_silence
+                num_samples = 32000
                 waveform = self._sample_silence_waveform(self._bg_noises_cache, num_samples)
                 feature = self._prepare_feature_from_waveform(waveform)
                 label = self.CLASS_MAP["silence"]
@@ -212,7 +298,7 @@ class NpxSpeechCommandsPreprocess(SPEECHCOMMANDS):
             self.targets.append(int(label))
 
             if self.cache_dir is not None:
-                torch.save({"feature": feature, "": int(label)}, cache_path)
+                torch.save({"feature": feature, "label": int(label)}, cache_path)
 
         # Try stacking (only if all shapes are consistent)
         try:
@@ -256,8 +342,8 @@ class NpxSpeechCommandsPreprocess(SPEECHCOMMANDS):
         return super(NpxSpeechCommandsPreprocess, self).__len__()
 
     def num_classes(self) -> int:
-        """Return number of classes = len(target_words) + 2 (unknown + silence)."""
-        return len(self.target_words) + 2
+        """Return the configured number of output classes."""
+        return len(self.CLASS_MAP)
 
     def get_class_weights(self) -> Optional[torch.Tensor]:
         """Return per-class weights if balance_mode='weights', else None."""
