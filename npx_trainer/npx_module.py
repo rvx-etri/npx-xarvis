@@ -316,9 +316,37 @@ class NpxModule(nn.Module):
       layer_option['learn_threshold'] = False
       learn_threshold = False
     neuron_type.learn_threshold = learn_threshold
-      
-    #spike_grad = surrogate.fast_sigmoid(slope=25)
-    spike_grad = None
+
+    # Surrogate-gradient width, tied to each layer's own threshold.
+    #
+    # The default (spike_grad=None) is snntorch's atan surrogate at alpha=2,
+    # whose half-width 2/(pi*alpha)=0.318 is an *absolute* distance in membrane
+    # units. Each layer's membrane scale tracks its own threshold, so once
+    # thresholds are calibrated per layer one fixed window fits them all badly:
+    # at thresholds 0.087..0.487 that same 0.318 is 3.7x the threshold in the
+    # shallow layers -- gradient nearly constant, so they stop discriminating
+    # near-threshold inputs -- and 0.65x in the deep ones.
+    #
+    # fast_sigmoid is used rather than atan because its gradient
+    #   1 / (slope*|mem-threshold| + 1)**2
+    # peaks at 1.0 for every slope, so changing slope changes the width and
+    # nothing else. atan is normalised to unit *integral* instead, meaning its
+    # peak is alpha/2 -- narrowing it there also multiplies the gradient (11x in
+    # the shallow layers at alpha=2/threshold), which compounds across layers
+    # and silences the network exactly as too large an lr does.
+    #
+    # `surrogate_scale` is the slope you would want at threshold=1.0; the slope
+    # actually used is surrogate_scale/threshold, so the window stays a fixed
+    # fraction of threshold in every layer. Half-width is 0.4142/slope, so
+    # surrogate_scale=1.3 reproduces the default 0.318 window at threshold=1.0.
+    # Unset (or 0) keeps the previous behaviour exactly, so existing apps are
+    # unaffected. Training-only: it never reaches the riscv network cfg.
+    surrogate_scale = self.dicide_option_value(layer_option, 'surrogate_scale', 0)
+    if surrogate_scale:
+      assert threshold > 0, f'surrogate_scale needs threshold>0 (got {threshold})'
+      spike_grad = surrogate.fast_sigmoid(slope=float(surrogate_scale)/float(threshold))
+    else:
+      spike_grad = None
     neuron = snntorch.Leaky(beta=beta, learn_beta=learn_beta, spike_grad=spike_grad, threshold=threshold, learn_threshold=learn_threshold,
                             init_hidden=True, reset_delay=reset_delay, reset_mechanism=reset_mechanism, output=neuron_output)
     neuron.neuron_type = neuron_type

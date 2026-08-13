@@ -304,7 +304,9 @@ class NpxCfgParser():
         del layer_info['beta']
         del layer_info['learn_beta']
         # 2nd-order neuron models ([Synaptic]/[Alpha]) carry extra keys.
-        for extra_key in ('alpha', 'learn_alpha', 'neuron_model'):
+        # `surrogate_scale` only shapes the training-time surrogate gradient and
+        # has no meaning at inference, so it is dropped here too.
+        for extra_key in ('alpha', 'learn_alpha', 'neuron_model', 'surrogate_scale'):
           if extra_key in layer_info:
             del layer_info[extra_key]
 
