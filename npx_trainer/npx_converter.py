@@ -70,16 +70,10 @@ def write_parameter_to_binaryfile(npx_module:NpxModule, bin_path:Path):
   with open(bin_path, "wb") as bin_file:
     for i, layer in enumerate(npx_module.layer_sequence):
       if (type(layer)==nn.Linear) or (type(layer)==nn.Conv2d):
-        weights = layer.weight.data.flatten()
-        neuron_type:NpxNeuronType = layer.neuron_type
-        if neuron_type.num_bits <= 8:
-          write_data_aligned_by_4bytes(bin_file, weights, torch.int8)
-        elif neuron_type.num_bits <= 16:
-          write_data_aligned_by_4bytes(bin_file, weights, torch.int16)
-        elif neuron_type.num_bits <= 32:
-          write_data_aligned_by_4bytes(bin_file, weights, torch.int32)
-        else:
-          assert 0, neuron_type.num_bits
+        write_weights_to_binaryfile(bin_file, layer)
+      elif isinstance(layer, Shortcut):
+        if layer.has_weight:
+          write_weights_to_binaryfile(bin_file, layer)
       elif npx_module.is_neuron(layer):
         threshold = layer.threshold
         write_data_aligned_by_4bytes(bin_file, threshold, torch.int32)
@@ -88,6 +82,18 @@ def write_parameter_to_binaryfile(npx_module:NpxModule, bin_path:Path):
         # 2nd-order models ([Synaptic]/[Alpha]) additionally export `alpha`.
         if hasattr(layer, 'alpha'):
           write_data_aligned_by_4bytes(bin_file, layer.alpha, torch.float32)
+
+def write_weights_to_binaryfile(bin_file, layer):
+  weights = layer.weight.data.flatten()
+  neuron_type:NpxNeuronType = layer.neuron_type
+  if neuron_type.num_bits <= 8:
+    write_data_aligned_by_4bytes(bin_file, weights, torch.int8)
+  elif neuron_type.num_bits <= 16:
+    write_data_aligned_by_4bytes(bin_file, weights, torch.int16)
+  elif neuron_type.num_bits <= 32:
+    write_data_aligned_by_4bytes(bin_file, weights, torch.int32)
+  else:
+    assert 0, neuron_type.num_bits
 
 def write_data_aligned_by_4bytes(file_io, data:torch.Tensor, data_type:torch.dtype):
   if data_type==torch.float32:

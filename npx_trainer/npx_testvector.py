@@ -242,9 +242,16 @@ def manual_forward_pass(npx_module:NpxModule, data, tv_bin_path:Path=None):
     prev_layer_type = snntorch.Leaky
     last_tensor = data[step]
     cmp_tensor = data[step].to('cpu')
+    last_tensor_list = []
 
     for i, layer in enumerate(npx_module.layer_sequence):
-      last_tensor = layer(last_tensor)
+      if isinstance(layer, Shortcut):
+        skip_tensor = last_tensor_list[i + layer.skip_from]
+        skip_tensor = layer(skip_tensor)
+        last_tensor = last_tensor + skip_tensor
+      else:
+        last_tensor = layer(last_tensor)
+      last_tensor_list.append(last_tensor)
       if type(layer) == nn.AvgPool2d:
         #last_tensor = last_tensor.to(torch.int32).to(torch.float)
         tv_tensor = last_tensor*layer.kernel_size*layer.kernel_size

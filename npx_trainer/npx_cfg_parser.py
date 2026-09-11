@@ -237,7 +237,8 @@ class NpxCfgParser():
         assert layer_info['input_info'].dims == 2, layer_info['input_info'].size
         assert layer_info['input_info'].channels == in_channels, in_channels
         output_datatype *= (layer_info['kernel_size']
-                  * layer_info['kernel_size'])
+                  * layer_info['kernel_size']
+                  * (in_channels // layer_info.get('groups', 1)))
         output_datatype *= weight_datatype
         output_size = []
         for each_size in layer_info['input_info'].size:
@@ -249,14 +250,15 @@ class NpxCfgParser():
         layer_info['weight_bitwidth'] = neuron_type.num_bits
 
       elif layer_info.name == 'Shortcut':
-        layer_info['input_info'] = output_info_list[len(output_info_list) + layer_info['from']]
+        layer_info['input_info'] = output_info_list[len(output_info_list) + layer_info['skip_from']]
 
-        if layer_info['mode']=='projection':
+        if layer_info['type']=='Conv2d':
           in_channels = layer_info['in_channels']
           assert layer_info['input_info'].dims == 2, layer_info['input_info'].size
           assert layer_info['input_info'].channels == in_channels, in_channels
           output_datatype *= (layer_info['kernel_size']
-                    * layer_info['kernel_size'])
+                    * layer_info['kernel_size']
+                    * in_channels)
           output_datatype *= weight_datatype
           output_size = []
           for each_size in layer_info['input_info'].size:
@@ -267,13 +269,23 @@ class NpxCfgParser():
 
           layer_info['weight_bitwidth'] = neuron_type.num_bits
 
-        elif layer_info['mode']=='identity': 
+        elif layer_info['type']=='Identity':
           output_scale = 1
           output_datatype = layer_info['input_info'].datatype
           out_channels = layer_info['input_info'].channels
           output_size = layer_info['input_info'].size
+
+        elif layer_info['type'] in ('MaxPool2d', 'AvgPool2d'):
+          assert layer_info['input_info'].dims == 2, layer_info['input_info'].size
+          output_scale = 1
+          output_datatype = layer_info['input_info'].datatype
+          out_channels = layer_info['input_info'].channels
+          output_size = []
+          for each_size in layer_info['input_info'].size:
+            output_size.append(int(each_size/layer_info['stride']))
+
         else:
-          assert 0, layer_info['mode']
+          assert 0, layer_info['type']
 
       elif layer_info.name == 'Linear':
         assert layer_info['input_info'].dims == 1, layer_info['input_info'].size

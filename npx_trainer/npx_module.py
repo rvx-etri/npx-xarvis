@@ -118,9 +118,9 @@ class NpxModule(nn.Module):
         last_tensor = self.forward_layer(i, layer, last_tensor)
       elif isinstance(layer, Shortcut):
         skip_tensor = last_tensor_list[(i) + layer.skip_from]
-        if layer.mode == "projection":
+        if layer.has_weight:
           skip_tensor = self.forward_layer(i, layer, skip_tensor)
-        else: # ??
+        else:
           skip_tensor = layer(skip_tensor)
         last_tensor = last_tensor + skip_tensor
       elif self.is_neuron(layer):
@@ -159,7 +159,7 @@ class NpxModule(nn.Module):
       if (type(layer)==nn.Linear) or (type(layer)==nn.Conv2d):
         print(layer.weight)
       elif isinstance(layer, Shortcut):
-        if layer.mode == "projection":
+        if layer.has_weight:
           print(layer.weight)
       elif self.is_neuron(layer):
         print(layer.threshold)
@@ -172,7 +172,7 @@ class NpxModule(nn.Module):
         qtensor = layer.neuron_type.quantize_tensor(layer.weight.data, bounded=True)
         layer.weight.data = qtensor.tensor.float()
       elif isinstance(layer, Shortcut):
-        if layer.mode == "projection":
+        if layer.has_weight:
           qtensor = layer.neuron_type.quantize_tensor(layer.weight.data, bounded=True)
           layer.weight.data = qtensor.tensor.float()
       elif self.is_neuron(layer):
@@ -186,7 +186,7 @@ class NpxModule(nn.Module):
       if (type(layer)==nn.Linear) or (type(layer)==nn.Conv2d):
         line_list.append(str(layer.weight.tolist()))
       elif isinstance(layer, Shortcut):
-        if layer.mode == "projection":
+        if layer.has_weight:
           line_list.append(str(layer.weight.tolist()))
       elif self.is_neuron(layer):
         line_list.append(str(layer.threshold.tolist()))
@@ -239,8 +239,8 @@ class NpxModule(nn.Module):
 
       elif layer_option.name == 'Shortcut':
         # synapse option
-        skip_from = layer_option.setdefault('from', 1)
-        mode = layer_option.setdefault('mode', 'projection')
+        skip_from = layer_option.setdefault('skip_from', 1)
+        shortcut_type = layer_option.setdefault('type', 'Conv2d')
         in_channels = layer_option.setdefault('in_channels', 1)
         out_channels = layer_option.setdefault('out_channels', 1)
         kernel_size = layer_option.setdefault('kernel_size', 1)
@@ -248,7 +248,7 @@ class NpxModule(nn.Module):
         padding = layer_option.setdefault('padding', 0)
         # print(in_channels, out_channels, kernel_size, stride, padding)
 
-        layer = Shortcut(in_channels, out_channels, kernel_size, stride, padding, bias=False, skip_from=skip_from, mode=mode)
+        layer = Shortcut(in_channels, out_channels, kernel_size, stride, padding, bias=False, skip_from=skip_from, type=shortcut_type)
         not_assigned_layer_list.append((layer, layer_option))
 
       elif layer_option.name == 'MaxPool2d':
@@ -354,20 +354,35 @@ class NpxModule(nn.Module):
     return neuron
 
 class Shortcut(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, bias, skip_from, mode="projection"):
+    SUPPORTED_TYPES = ('Identity', 'Conv2d', 'MaxPool2d', 'AvgPool2d')
+
+    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, bias, skip_from, type="Conv2d"):
         super().__init__()
 
         self.skip_from = skip_from
-        self.mode = mode
+        self.shortcut_type = type
 
-        if self.mode == "projection":
+        if self.shortcut_type == "Conv2d":
             self.op = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, bias=bias)
             self.weight = self.op.weight
-        elif self.mode == "identity":
+        elif self.shortcut_type == "Identity":
             self.op = nn.Identity()
             self.weight = None
+        elif self.shortcut_type == "MaxPool2d":
+            self.op = nn.MaxPool2d(kernel_size, stride, padding)
+            self.weight = None
+        elif self.shortcut_type == "AvgPool2d":
+            self.op = nn.AvgPool2d(kernel_size, stride, padding)
+            self.weight = None
         else:
-            raise ValueError(f"Unknown mode: {self.mode}")
+            raise ValueError(f"Unknown type: {self.shortcut_type}")
+
+    @property
+    def has_weight(self):
+        return self.shortcut_type == "Conv2d"
 
     def forward(self, x):
-        return self.op(x)
+        result = self.op(x)
+        if (self.shortcut_type == "AvgPool2d") and (not self.training):
+            result = torch.trunc(result)
+        return result
