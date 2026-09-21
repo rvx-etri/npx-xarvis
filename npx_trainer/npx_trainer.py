@@ -279,6 +279,7 @@ class NpxTrainer():
       result_list = []
       npx_data_manager.setup_loader(repeat_index)
       npx_module = self.module_class(app_cfg_path=npx_define.app_cfg_path).to(self.device)
+      npx_module.is_network_quantized = True
       for history_parameter_path in sorted(npx_define.parameter_dir_path.glob(npx_define.get_parameter_filename_pattern(repeat_index, True)),reverse=True):
         self.load_checkpoint(npx_module,None,history_parameter_path)
         #npx_module.load_state_dict(torch.load(history_parameter_path))

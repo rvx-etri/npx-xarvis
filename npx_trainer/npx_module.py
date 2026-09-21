@@ -37,7 +37,7 @@ class PotentialResult():
 
   def __repr__(self):
     assert self.neuron_type
-    return str((self.pacc,self.nacc,math.ceil(self.max/self.neuron_type.qscale)))
+    return str((self.pacc,self.nacc,math.ceil(self.max/self.neuron_type.qcode_max)))
 
 NEURON_REGISTRY = {
   'leaky': snntorch.Leaky,
@@ -134,8 +134,7 @@ class NpxModule(nn.Module):
   def forward_layer(self, i:int, layer, x:Tensor):
     if self.training and layer.neuron_type:
       original_tensor = copy.deepcopy(layer.weight.data)
-      layer.neuron_type.synch_with_threshold(layer.neuron.threshold)
-      layer.neuron_type.update_mapped_fvalue(layer.weight.data)
+      self.update_q_max(layer.neuron)
       qtensor = layer.neuron_type.quantize_tensor(layer.weight.data, bounded=True)
       layer.weight.data = layer.neuron_type.dequantize_tensor(qtensor)
     current = layer(x)
@@ -164,9 +163,43 @@ class NpxModule(nn.Module):
       elif self.is_neuron(layer):
         print(layer.threshold)
 
+  def update_q_max(self, neuron):
+    weight_list = [layer.weight.data for layer in neuron.weight_layers]
+    neuron.neuron_type.update_q_max(weight_list, neuron.threshold)
+
+  def trace_input_factor(self, layer_factor):
+    factor = 1.0
+    factor_list = []
+    neuron_factor_list = []
+    mismatch_list = []
+    for i, layer in enumerate(self.layer_sequence):
+      if (type(layer)==nn.Linear) or (type(layer)==nn.Conv2d):
+        factor = factor * layer_factor(layer)
+      elif isinstance(layer, Shortcut):
+        skip_factor = factor_list[(i) + layer.skip_from]
+        if layer.has_weight:
+          skip_factor = skip_factor * layer_factor(layer)
+        if not math.isclose(skip_factor, factor, rel_tol=1e-9):
+          mismatch_list.append((i, factor, skip_factor))
+      elif self.is_neuron(layer):
+        neuron_factor_list.append((layer, factor))
+        factor = 1.0
+      factor_list.append(factor)
+    return neuron_factor_list, mismatch_list
+
   def quantize_network(self):
     assert not self.training
     self.is_network_quantized = True
+    for layer in self.layer_sequence:
+      if self.is_neuron(layer):
+        self.update_q_max(layer)
+    neuron_factor_list, mismatch_list = self.trace_input_factor(
+      lambda layer: layer.neuron_type.inv_scale if layer.neuron_type.is_quantized else 1.0)
+    assert not mismatch_list, [f'layer {i}: the shortcut adds codes at {skip_factor:.6g}x to codes at {factor:.6g}x'
+                               for i, factor, skip_factor in mismatch_list]
+    for neuron, factor in neuron_factor_list:
+      neuron.input_factor = factor
+    print('[QUANTIZE] input factor per neuron:', ', '.join(f'{factor:.6g}' for _, factor in neuron_factor_list))
     for layer in self.layer_sequence:
       if (type(layer)==nn.Linear) or (type(layer)==nn.Conv2d):
         qtensor = layer.neuron_type.quantize_tensor(layer.weight.data, bounded=True)
@@ -176,7 +209,7 @@ class NpxModule(nn.Module):
           qtensor = layer.neuron_type.quantize_tensor(layer.weight.data, bounded=True)
           layer.weight.data = qtensor.tensor.float()
       elif self.is_neuron(layer):
-        qtensor = layer.neuron_type.quantize_tensor(layer.threshold, bounded=False)
+        qtensor = layer.neuron_type.quantize_threshold(layer.threshold, layer.input_factor)
         layer.threshold = type(layer.threshold)(qtensor.tensor.float())
 
   def write_parameter(self, path:Path):
@@ -275,7 +308,10 @@ class NpxModule(nn.Module):
         #layer = self.make_neuron(layer_option, neuron_output)
         layer = self.make_neuron(layer_option, False)
         assert layer.neuron_type
+        layer.weight_layers = []
         for previous_layer, previous_layer_option in not_assigned_layer_list:
+          if getattr(previous_layer, 'weight', None) is not None:
+            layer.weight_layers.append(previous_layer)
           previous_layer.neuron = layer
           previous_layer.neuron_type = layer.neuron_type
           assert 'neuron_type' not in previous_layer_option
@@ -287,34 +323,49 @@ class NpxModule(nn.Module):
       self.add_module('layer' + str(i), layer)
       self.layer_sequence.append(layer)
     assert len(not_assigned_layer_list)==0
+    neuron_factor_list, mismatch_list = self.trace_input_factor(lambda layer: 2.0)
+    assert not mismatch_list, [f'layer {i}: the shortcut adds a tensor after {round(math.log2(skip_factor))} weight layers '
+                               f'to one after {round(math.log2(factor))}' for i, factor, skip_factor in mismatch_list]
+    for neuron, factor in neuron_factor_list:
+      neuron.neuron_type.input_depth = round(math.log2(factor))
+    self.share_shortcut_scale()
+
+  def share_shortcut_scale(self):
+    for i, layer in enumerate(self.layer_sequence):
+      if not isinstance(layer, Shortcut) or layer.has_weight:
+        continue
+      source_type = None
+      for j in range((i) + layer.skip_from, -1, -1):
+        source = self.layer_sequence[j]
+        if self.is_neuron(source):
+          break
+        if (type(source)==nn.Linear) or (type(source)==nn.Conv2d) or (isinstance(source, Shortcut) and source.has_weight):
+          source_type = source.neuron_type
+          break
+      if source_type is None:
+        continue
+      if layer.neuron_type is not source_type:
+        layer.neuron_type.q_max_source = source_type
 
   def make_neuron(self, layer_option, neuron_output):
-    neuron_type_str = self.dicide_option_value(layer_option, 'neuron_type', 'q8ssf')
+    neuron_type_str = self.dicide_option_value(layer_option, 'neuron_type', 'ws8')
     neuron_type = self.neuron_type_class(neuron_type_str)
-    
-    mapped_fvalue = self.dicide_option_value(layer_option, 'mapped_fvalue', neuron_type.mapped_fvalue)
-    neuron_type.mapped_fvalue = mapped_fvalue
-    layer_option['mapped_fvalue'] = neuron_type.mapped_fvalue
+    layer_option['neuron_type'] = neuron_type.name
     
     beta = self.dicide_option_value(layer_option, 'beta', 1.0)
     beta = neuron_type.quantize_beta(beta)
     layer_option['beta'] = beta
     
-    if neuron_type.can_learn_beta:
-      learn_beta = self.dicide_option_value(layer_option, 'learn_beta', False)
-    else:
-      layer_option['learn_beta'] = False
+    learn_beta = self.dicide_option_value(layer_option, 'learn_beta', False)
     neuron_type.learn_beta = learn_beta
     
     reset_mechanism = self.dicide_option_value(layer_option, 'reset_mechanism', 'subtract')    
+    overflow_headroom = self.dicide_option_value(layer_option, 'overflow_headroom', DEFAULT_OVERFLOW_HEADROOM)
+    neuron_type.configure_membrane(reset_mechanism, overflow_headroom)
     reset_delay = self.dicide_option_value(layer_option, 'reset_delay', True)
     
     threshold = self.dicide_option_value(layer_option, 'threshold', 1.0)
-    if neuron_type.can_learn_threshold:
-      learn_threshold = self.dicide_option_value(layer_option, 'learn_threshold', False)
-    else:
-      layer_option['learn_threshold'] = False
-      learn_threshold = False
+    learn_threshold = self.dicide_option_value(layer_option, 'learn_threshold', False)
     neuron_type.learn_threshold = learn_threshold
 
     # Surrogate-gradient width, tied to each layer's own threshold.

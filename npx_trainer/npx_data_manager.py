@@ -9,21 +9,12 @@ from torch.utils.data import ConcatDataset
 import tonic
 
 from collections import Counter
-from requests import get
 from npx_cfg_parser import *
 from npx_define import *
 
 from npx_speechcommands import *
+import npx_opendataset_prepare
 from sklearn.model_selection import GroupShuffleSplit
-
-def download(url: str, root: Path, file_name=None):
-    if not file_name:
-        file_name = url.split('/')[-1]
-
-    path = root / file_name
-    with open(path, "wb") as file:
-        response = get(url)
-        file.write(response.content)
 
 
 def intstr_to_tuple(intstr):
@@ -154,16 +145,14 @@ class NpxDataManager():
         is_open_dataset = False
         if self.name.endswith('_opendataset'):
             self.name = self.name[:-len('_opendataset')]
-            opendatatset_list = ['mnist', 'kmnist', 'fmnist',
-                                 'cifar10', 'gtsrb', 'dvsgesture', 'speechcommands']
-            assert self.name in opendatatset_list, self.name
+            assert self.name in npx_opendataset_prepare.OPEN_DATASETS, self.name
             is_open_dataset = True
         elif self.name.endswith('_dataset'):
             self.name = self.name[:-len('_dataset')]
 
         self.download_path = dataset_path / self.name
         if is_open_dataset:
-            self.download_path.mkdir(parents=True, exist_ok=True)
+            npx_opendataset_prepare.prepare(self.name, dataset_path)
         else:
             assert self.download_path.is_dir(), self.download_path
 
@@ -192,8 +181,8 @@ class NpxDataManager():
                 [transforms.Grayscale()],
                 [transforms.ToTensor(), transforms.Normalize((0,), (1,))],
                 lambda t: datasets.MNIST(
-                    root=self.download_path, train=True, download=True, transform=t),
-                lambda t: datasets.MNIST(root=self.download_path, train=False, download=True, transform=t))
+                    root=self.download_path, train=True, download=False, transform=t),
+                lambda t: datasets.MNIST(root=self.download_path, train=False, download=False, transform=t))
         elif self.name == 'kmnist':
             if not self.split_method:
                 self.split_method = 'stratified'
@@ -212,8 +201,8 @@ class NpxDataManager():
                 [transforms.Grayscale()],
                 [transforms.ToTensor(), transforms.Normalize((0,), (1,))],
                 lambda t: datasets.KMNIST(
-                    root=self.download_path, train=True, download=True, transform=t),
-                lambda t: datasets.KMNIST(root=self.download_path, train=False, download=True, transform=t))
+                    root=self.download_path, train=True, download=False, transform=t),
+                lambda t: datasets.KMNIST(root=self.download_path, train=False, download=False, transform=t))
         elif self.name == 'fmnist':
             if not self.split_method:
                 self.split_method = 'stratified'
@@ -225,14 +214,6 @@ class NpxDataManager():
                 'timesteps', 4)
             # value = NpxCfgParser.find_option_value(npx_define.cfg_parser.preprocess_info, 'resize', '14,14')
             # self.resize = intstr_to_tuple(value)
-            download('https://github.com/zalandoresearch/fashion-mnist/raw/master/data/fashion/t10k-images-idx3-ubyte.gz',
-                     self.download_path / 'FashionMNIST/raw')
-            download('https://github.com/zalandoresearch/fashion-mnist/raw/master/data/fashion/t10k-labels-idx1-ubyte.gz',
-                     self.download_path / 'FashionMNIST/raw')
-            download('https://github.com/zalandoresearch/fashion-mnist/raw/master/data/fashion/train-images-idx3-ubyte.gz',
-                     self.download_path / 'FashionMNIST/raw')
-            download('https://github.com/zalandoresearch/fashion-mnist/raw/master/data/fashion/train-labels-idx1-ubyte.gz',
-                     self.download_path / 'FashionMNIST/raw')
             dataset_train_and_val = self._setup_image_datasets(
                 npx_define.cfg_parser.preprocess_info,
                 # transforms.Resize((14, 14)),
@@ -240,8 +221,8 @@ class NpxDataManager():
                 [transforms.Grayscale()],
                 [transforms.ToTensor(), transforms.Normalize((0,), (1,))],
                 lambda t: datasets.FashionMNIST(
-                    root=self.download_path, train=True, download=True, transform=t),
-                lambda t: datasets.FashionMNIST(root=self.download_path, train=False, download=True, transform=t))
+                    root=self.download_path, train=True, download=False, transform=t),
+                lambda t: datasets.FashionMNIST(root=self.download_path, train=False, download=False, transform=t))
         elif self.name == 'cifar10':
             if not self.split_method:
                 self.split_method = 'stratified'
@@ -260,8 +241,8 @@ class NpxDataManager():
                 [],
                 [transforms.ToTensor(), transforms.Normalize((0, 0, 0), (1, 1, 1))],
                 lambda t: datasets.CIFAR10(
-                    root=self.download_path, train=True, download=True, transform=t),
-                lambda t: datasets.CIFAR10(root=self.download_path, train=False, download=True, transform=t))
+                    root=self.download_path, train=True, download=False, transform=t),
+                lambda t: datasets.CIFAR10(root=self.download_path, train=False, download=False, transform=t))
         elif self.name == 'gtsrb':
             if not self.split_method:
                 self.split_method = 'stratified_group'
@@ -283,8 +264,8 @@ class NpxDataManager():
                 [transforms.Resize(self.resize)],
                 [transforms.ToTensor(), transforms.Normalize((0, 0, 0), (1, 1, 1))],
                 lambda t: datasets.GTSRB(
-                    root=self.download_path, split='train', download=True, transform=t),
-                lambda t: datasets.GTSRB(root=self.download_path, split='test', download=True, transform=t))
+                    root=self.download_path, split='train', download=False, transform=t),
+                lambda t: datasets.GTSRB(root=self.download_path, split='test', download=False, transform=t))
         elif self.name == 'dvsgesture':
             if not self.split_method:
                 self.split_method = 'stratified'
@@ -351,17 +332,17 @@ class NpxDataManager():
 
             train_dataset = NpxSpeechCommandsPreprocess(
                 root=self.download_path, subset='training', output_classes=self.output_classes,
-                transform=self.transform, target_sr=self.sample_rate)
+                transform=self.transform, target_sr=self.sample_rate, download=False)
             val_dataset = NpxSpeechCommandsPreprocess(
                 root=self.download_path, subset='validation', output_classes=self.output_classes,
-                transform=self.transform, target_sr=self.sample_rate)
+                transform=self.transform, target_sr=self.sample_rate, download=False)
             dataset_train_and_val = train_dataset + val_dataset
             self.dataset_test = NpxSpeechCommandsPreprocess(
                 root=self.download_path, subset='testing', output_classes=self.output_classes,
-                transform=self.transform, target_sr=self.sample_rate)
+                transform=self.transform, target_sr=self.sample_rate, download=False)
             self.dataset_test_raw = NpxSpeechCommandsPreprocess(
                 root=self.download_path, subset='testing', output_classes=self.output_classes,
-                transform=None, target_sr=self.sample_rate)
+                transform=None, target_sr=self.sample_rate, download=False)
         else:
             print(f'Custom Dataset: {self.name}')
             if not self.split_method:

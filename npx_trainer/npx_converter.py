@@ -56,6 +56,7 @@ def generate_riscv_binary(npx_define:NpxDefine):
 
   npx_module = NpxModule(app_cfg_path=npx_define.app_cfg_path)
   npx_module.load_state_dict(torch.load(riscv_parameter_path, weights_only=False)['npx_module'])
+  npx_module.is_network_quantized = True
 
   riscv_parameter_bin_path = npx_define.get_riscv_parameter_bin_path(True)
   #print(riscv_parameter_bin_path)
@@ -86,7 +87,10 @@ def write_parameter_to_binaryfile(npx_module:NpxModule, bin_path:Path):
 def write_weights_to_binaryfile(bin_file, layer):
   weights = layer.weight.data.flatten()
   neuron_type:NpxNeuronType = layer.neuron_type
-  if neuron_type.num_bits <= 8:
+  if not neuron_type.is_signed_weight:
+    assert neuron_type.num_bits <= 8, neuron_type.name
+    write_data_aligned_by_4bytes(bin_file, weights, torch.uint8)
+  elif neuron_type.num_bits <= 8:
     write_data_aligned_by_4bytes(bin_file, weights, torch.int8)
   elif neuron_type.num_bits <= 16:
     write_data_aligned_by_4bytes(bin_file, weights, torch.int16)

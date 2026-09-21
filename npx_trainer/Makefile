@@ -16,6 +16,7 @@ endif
 #NUM_EPOCH=10
 #NUM_REPEAT=1
 NUM_SAMPLE=1
+DATASET_LIST?=all
 
 #########
 ## RAW ##
@@ -38,6 +39,9 @@ tv:
 
 sample:
 	@${PYTHON3_CMD} ./npx_testvector.py -cfg $(CFG_FILE) -cmd testvector -dataset ${DATASET_DIR} -s ${NUM_SAMPLE} -o ${RESULT_DIR} --sample_only
+
+prepare_dataset:
+	@${PYTHON3_CMD} ./npx_opendataset_prepare.py -dataset ${DATASET_DIR} -i ${DATASET_LIST}
 
 #########
 ## APP ##
@@ -94,7 +98,7 @@ check3:
 ####################
 
 PREDEFINED_APP_PREFIX_LIST=mnist_l2cf mnist_l2ff mnist_l3ccf mnist_l3fff mnist_l3cff mnist_l1f kmnist_l3fff fmnist_l2cf fmnist_l3cff fmnist_l3ccf cifar10_l5cccff gtsrb_l5cccff
-NEURON_TYPE_LIST=q8ssf
+NEURON_TYPE_LIST=ws8
 
 gen_info:
 	@echo ${PREDEFINED_APP_PREFIX_LIST}
@@ -103,13 +107,13 @@ gen_info:
 $(addsuffix .gen_cfg, ${PREDEFINED_APP_PREFIX_LIST}):%.gen_cfg:
 	@${PYTHON3_CMD} ./npx_app_cfg_generator.py -app $(*) -neuron ${NEURON_TYPE_LIST} -dataset ${DATASET_DIR} -o ${APP_CFG_DIR}
 
-$(addsuffix _q8ssf.reall, ${PREDEFINED_APP_PREFIX_LIST}):%_q8ssf.reall:
-	@make $(*).gen_cfg NEURON_TYPE_LIST=q8ssf
-	@make $(*)_q8ssf.reset
-	@make $(*)_q8ssf.train
+$(addsuffix _ws8.reall, ${PREDEFINED_APP_PREFIX_LIST}):%_ws8.reall:
+	@make $(*).gen_cfg NEURON_TYPE_LIST=ws8
+	@make $(*)_ws8.reset
+	@make $(*)_ws8.train
 
 ################
 ## FORWARDING ##
 ################
 
-$(addsuffix .reall, ${PREDEFINED_APP_PREFIX_LIST}):%.reall: %_q8ssf.reall
+$(addsuffix .reall, ${PREDEFINED_APP_PREFIX_LIST}):%.reall: %_ws8.reall

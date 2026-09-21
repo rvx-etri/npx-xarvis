@@ -204,6 +204,7 @@ def generate_testvector(npx_define:NpxDefine, npx_data_manager:NpxDataManager, n
   riscv_parameter_path = npx_define.get_riscv_parameter_path(is_quantized=True)
   assert riscv_parameter_path.exists(), riscv_parameter_path
   npx_module.load_state_dict(torch.load(riscv_parameter_path, weights_only=False)['npx_module'])
+  npx_module.is_network_quantized = True
   
   npx_define.riscv_tv_path.mkdir(exist_ok=True, parents=True)
 

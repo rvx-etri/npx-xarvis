@@ -109,7 +109,7 @@ class DataType(NamedTuple):
   def convert_neuron_type(neuron_type: NpxNeuronType):
     signedtype = SignedType.SIGNED if neuron_type.is_signed_weight else SignedType.UNSIGNED
     numbertype = NumberType.DISCR if neuron_type.is_quantized else NumberType.CONTI
-    return DataType(signedtype, numbertype, 0, neuron_type.qscale)
+    return DataType(signedtype, numbertype, 0, neuron_type.qcode_max)
 
 
 class LayerIoInfo(NamedTuple):
@@ -128,6 +128,30 @@ class LayerIoInfo(NamedTuple):
       if each_size == 1:
         size -= 1
     return size
+
+
+RISCV_GLOBAL_KEYS = ('input_size', 'input_channels', 'output_classes')
+RISCV_IO_KEYS = ('in_channels', 'out_channels', 'in_size', 'out_size',
+                 'in_is_quantized', 'out_is_quantized', 'in_is_binary', 'out_is_binary', 'out_maxvalue')
+RISCV_WEIGHT_KEYS = ('neuron_type',)
+RISCV_CONV_KEYS = ('kernel_size', 'stride', 'padding', 'groups') + RISCV_WEIGHT_KEYS
+RISCV_POOL_KEYS = ('kernel_size', 'stride', 'padding')
+RISCV_NEURON_KEYS = ('neuron_type', 'reset_mechanism', 'reset_delay')
+RISCV_LAYER_KEYS = {
+  'Conv2d': RISCV_CONV_KEYS,
+  'Linear': ('in_features', 'out_features') + RISCV_WEIGHT_KEYS,
+  'MaxPool2d': RISCV_POOL_KEYS,
+  'AvgPool2d': RISCV_POOL_KEYS,
+  'Shortcut': ('skip_from', 'type') + RISCV_CONV_KEYS,
+  'Flatten': (),
+  'Leaky': RISCV_NEURON_KEYS,
+  'Synaptic': RISCV_NEURON_KEYS,
+  'Alpha': RISCV_NEURON_KEYS,
+}
+
+def keep_only(section, key_list):
+  for key in [key for key in section if key not in key_list]:
+    del section[key]
 
 
 class NpxCfgParser():
@@ -310,18 +334,6 @@ class NpxCfgParser():
         out_channels = layer_info['input_info'].channels
         output_size = layer_info['input_info'].size
 
-        del layer_info['threshold']
-        del layer_info['learn_threshold']
-        del layer_info['mapped_fvalue']
-        del layer_info['beta']
-        del layer_info['learn_beta']
-        # 2nd-order neuron models ([Synaptic]/[Alpha]) carry extra keys.
-        # `surrogate_scale` only shapes the training-time surrogate gradient and
-        # has no meaning at inference, so it is dropped here too.
-        for extra_key in ('alpha', 'learn_alpha', 'neuron_model', 'surrogate_scale'):
-          if extra_key in layer_info:
-            del layer_info[extra_key]
-
       elif layer_info.name == 'Flatten':
         out_channels = 1
         output_size = layer_info['input_info'].channels
@@ -349,9 +361,12 @@ class NpxCfgParser():
       print(layer_info['input_info'])
       print(layer_info['output_info'])
 
-      del layer_info['input_info']
-      del layer_info['output_info']
-      del layer_info['neuron_type']
+      if (layer_info.name in ('Leaky', 'Synaptic', 'Alpha')) or ('weight_bitwidth' in layer_info):
+        layer_info['neuron_type'] = NpxNeuronType(layer_info['neuron_type']).full_name
+      else:
+        layer_info.pop('neuron_type', None)
+      keep_only(layer_info, RISCV_IO_KEYS + RISCV_LAYER_KEYS[layer_info.name])
 
+    keep_only(self.global_info, RISCV_GLOBAL_KEYS)
     self.preprocess_info = None
     self.train_info = None

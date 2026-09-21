@@ -189,7 +189,7 @@ if __name__ == '__main__':
 
   parser = argparse.ArgumentParser(description='NPX Framework')
   parser.add_argument('-app', '-a', nargs='+', help='example app name', default=[])
-  parser.add_argument('-neuron', '-n', nargs='+', help='types of neuron', default=['q8ssf'])
+  parser.add_argument('-neuron', '-n', nargs='+', help='types of neuron', default=['ws8'])
   parser.add_argument('-dataset', '-d', help='dataset directory')
   parser.add_argument('-output', '-o', help='app cfg directory', default='./generated_cfg')
 
@@ -204,8 +204,8 @@ if __name__ == '__main__':
 
   neuron_list = []
   for neuron_set in args.neuron:
-    if '-' in neuron_set:
-      train_neuron_str, test_neuron_str = neuron_set.split('-')
+    if ':' in neuron_set:
+      train_neuron_str, test_neuron_str = neuron_set.split(':')
     else:
       train_neuron_str = neuron_set
       test_neuron_str = neuron_set
