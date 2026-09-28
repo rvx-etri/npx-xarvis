@@ -91,6 +91,10 @@ def prepare_gtsrb(root: Path):
 
 def prepare_dvsgesture(root: Path):
   import tonic
+  # figshare.com/ndownloader sits behind an AWS WAF challenge that answers 202 with
+  # an empty body, so tonic stores a 0-byte file and fails its md5 check
+  tonic.datasets.DVSGesture.train_url = 'https://ndownloader.figshare.com/files/38022171'
+  tonic.datasets.DVSGesture.test_url = 'https://ndownloader.figshare.com/files/38020584'
   for train in (True, False):
     tonic.datasets.DVSGesture(save_to=root, train=train)
 

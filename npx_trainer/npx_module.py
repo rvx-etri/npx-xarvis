@@ -16,6 +16,7 @@ from snntorch import spikegen
 from npx_define import *
 from npx_neuron_type import *
 from npx_cfg_parser import *
+from npx_leaky import NpxLeaky
 
 import npx_app_cfg_generator
 
@@ -40,7 +41,7 @@ class PotentialResult():
     return str((self.pacc,self.nacc,math.ceil(self.max/self.neuron_type.qcode_max)))
 
 NEURON_REGISTRY = {
-  'leaky': snntorch.Leaky,
+  'leaky': NpxLeaky,
   'synaptic': snntorch.Synaptic,
   'alpha': snntorch.Alpha,
 }
@@ -50,7 +51,7 @@ NEURON_STATE_NAMES = {
   'alpha': ('syn_exc', 'syn_inh', 'mem'),
 }
 NEURON_SECTION_NAMES = ('Leaky', 'Synaptic', 'Alpha')
-NEURON_CLASSES = tuple(NEURON_REGISTRY.values())
+NEURON_BASE_CLASSES = (snntorch.Leaky, snntorch.Synaptic, snntorch.Alpha)
 
 class NpxModule(nn.Module):
   def __init__(self, app_cfg_path:Path, neuron_type_class=NpxNeuronType):
@@ -65,7 +66,18 @@ class NpxModule(nn.Module):
       self.gen_layer_sequence(self.cfg_parser.layer_info_list)
       # print(net_option, layer_option_list)
     self.is_network_quantized = False
-  
+
+  @property
+  def is_network_quantized(self):
+    return self._is_network_quantized
+
+  @is_network_quantized.setter
+  def is_network_quantized(self, value:bool):
+    self._is_network_quantized = value
+    for layer in getattr(self, 'layer_sequence', []):
+      if self.is_neuron(layer):
+        layer.is_network_quantized = value
+
   def global_config(self, option_name:str):
     return self.cfg_parser.global_info.get(option_name)
       
@@ -91,7 +103,7 @@ class NpxModule(nn.Module):
 
   @classmethod
   def is_neuron(cls, layer):
-    return isinstance(layer, NEURON_CLASSES)
+    return isinstance(layer, NEURON_BASE_CLASSES)
 
   def backup_epoch_cfg(self, cfg_path:Path, overwrite:bool=False):
     assert overwrite or (not cfg_path.is_file()), cfg_path
@@ -144,14 +156,7 @@ class NpxModule(nn.Module):
     return current
       
   def forward_neuron(self, i:int, neuron, x:Tensor):
-    #if self.training and self.can_learn_neural_threshold and self.does_neuron_learn_threshold(neuron):
-    current = neuron(x)
-    neuron_type:NpxNeuronType = neuron.neuron_type
-    if neuron_type:
-      neuron_type.clamp_mem_(neuron.mem, self.is_network_quantized)
-      if neuron_type.learn_beta:
-        neuron.beta.data.fill_(neuron_type.quantize_beta(neuron.beta.data.float()))
-    return current
+    return neuron(x)
       
   def print_parameter(self):
     for layer in self.layer_sequence:
@@ -166,6 +171,13 @@ class NpxModule(nn.Module):
   def update_q_max(self, neuron):
     weight_list = [layer.weight.data for layer in neuron.weight_layers]
     neuron.neuron_type.update_q_max(weight_list, neuron.threshold)
+
+  def derive_q_max(self):
+    # the weight scale is otherwise only derived inside a training forward, so a
+    # freshly loaded network cannot convert the register bounds into float units
+    for layer in self.layer_sequence:
+      if self.is_neuron(layer):
+        self.update_q_max(layer)
 
   def trace_input_factor(self, layer_factor):
     factor = 1.0
@@ -190,9 +202,7 @@ class NpxModule(nn.Module):
   def quantize_network(self):
     assert not self.training
     self.is_network_quantized = True
-    for layer in self.layer_sequence:
-      if self.is_neuron(layer):
-        self.update_q_max(layer)
+    self.derive_q_max()
     neuron_factor_list, mismatch_list = self.trace_input_factor(
       lambda layer: layer.neuron_type.inv_scale if layer.neuron_type.is_quantized else 1.0)
     assert not mismatch_list, [f'layer {i}: the shortcut adds codes at {skip_factor:.6g}x to codes at {factor:.6g}x'
@@ -329,6 +339,21 @@ class NpxModule(nn.Module):
     for neuron, factor in neuron_factor_list:
       neuron.neuron_type.input_depth = round(math.log2(factor))
     self.share_shortcut_scale()
+    self.widen_direct_input_membrane([neuron for neuron, _ in neuron_factor_list])
+
+  def widen_direct_input_membrane(self, neuron_list):
+    # direct encoding feeds values, not spikes, so the first membrane holds a much
+    # larger sum than the later ones and always gets the full 32-bit register
+    if (not neuron_list) or (self.cfg_parser.preprocess_info.get('step_generation', 'direct') != 'direct'):
+      return
+    neuron_type = neuron_list[0].neuron_type
+    if neuron_type.mem_bits == MAX_MEM_BITS:
+      return
+    previous_name = neuron_type.full_name
+    neuron_type.mem_bits = MAX_MEM_BITS
+    warn_once(('direct input membrane', previous_name),
+              f'the input is not spikes (step_generation=direct), so the first neuron keeps the full'
+              f' membrane register: {previous_name} -> {neuron_type.full_name}')
 
   def share_shortcut_scale(self):
     for i, layer in enumerate(self.layer_sequence):
@@ -398,10 +423,9 @@ class NpxModule(nn.Module):
       spike_grad = surrogate.fast_sigmoid(slope=float(surrogate_scale)/float(threshold))
     else:
       spike_grad = None
-    neuron = snntorch.Leaky(beta=beta, learn_beta=learn_beta, spike_grad=spike_grad, threshold=threshold, learn_threshold=learn_threshold,
-                            init_hidden=True, reset_delay=reset_delay, reset_mechanism=reset_mechanism, output=neuron_output)
-    neuron.neuron_type = neuron_type
-    
+    neuron = NpxLeaky(neuron_type, beta=beta, learn_beta=learn_beta, spike_grad=spike_grad, threshold=threshold, learn_threshold=learn_threshold,
+                      init_hidden=True, reset_delay=reset_delay, reset_mechanism=reset_mechanism, output=neuron_output)
+
     return neuron
 
 class Shortcut(nn.Module):
